@@ -12,18 +12,18 @@
 
 <style scoped>
 .footer {
-  background: #efefef;
+  background: transparent;
   text-align: center;
-  padding: 20px;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  padding: 24px 16px 8px;
 }
 
 .copyright {
-  margin: 0;
-  color: #666;
-  font-size: 14px;
+  margin: 0 auto;
+  max-width: 1200px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.28);
+  color: #9ca3af;
+  font-size: 13px;
+  letter-spacing: 0.04em;
 }
 </style>

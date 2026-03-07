@@ -69,8 +69,14 @@ const handleMenuClick: MenuProps['onClick'] = (e) => {
 
 <style scoped>
 .header {
-  background: #fff;
-  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 0 28px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.32);
 }
 
 .header-left {
@@ -80,17 +86,76 @@ const handleMenuClick: MenuProps['onClick'] = (e) => {
 }
 
 .logo {
-  height: 48px;
-  width: 48px;
+  height: 42px;
+  width: 42px;
+  border-radius: 14px;
+  box-shadow:
+    0 12px 30px rgba(15, 23, 42, 0.7),
+    0 0 0 1px rgba(148, 163, 184, 0.6);
+  object-fit: cover;
 }
 
 .site-title {
   margin: 0;
   font-size: 18px;
-  color: #1890ff;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #e5e7eb;
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.9);
 }
 
 .ant-menu-horizontal {
   border-bottom: none !important;
+}
+
+.user-login-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.user-login-status :deep(.ant-btn-primary) {
+  border-radius: 9999px;
+  padding: 0 22px;
+  height: 36px;
+  font-weight: 500;
+  border: none;
+  background-image: linear-gradient(135deg, #22c55e, #4ade80);
+  box-shadow:
+    0 10px 25px rgba(22, 163, 74, 0.5),
+    0 0 0 1px rgba(22, 163, 74, 0.6);
+}
+
+.user-login-status :deep(.ant-btn-primary:hover),
+.user-login-status :deep(.ant-btn-primary:focus) {
+  background-image: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow:
+    0 14px 32px rgba(21, 128, 61, 0.7),
+    0 0 0 1px rgba(22, 163, 74, 0.7);
+}
+
+:deep(.ant-menu) {
+  background: transparent;
+}
+
+:deep(.ant-menu-horizontal) {
+  border-bottom: none;
+}
+
+:deep(.ant-menu-item) {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+:deep(.ant-menu-item:hover) {
+  color: #e5e7eb;
+}
+
+:deep(.ant-menu-item-selected) {
+  color: #22c55e;
+}
+
+:deep(.ant-menu-item-selected::after) {
+  border-bottom: 2px solid #22c55e;
 }
 </style>
