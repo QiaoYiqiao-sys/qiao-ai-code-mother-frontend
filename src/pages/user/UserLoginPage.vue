@@ -119,29 +119,24 @@ const onFinish = async () => {
   max-width: 420px;
   padding: 32px 32px 28px;
   border-radius: 24px;
-  background:
-    radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.18), transparent 55%),
-    radial-gradient(circle at 100% 100%, rgba(52, 211, 153, 0.22), transparent 55%),
-    rgba(15, 23, 42, 0.9);
-  box-shadow:
-    0 24px 60px rgba(15, 23, 42, 0.9),
-    0 0 0 1px rgba(148, 163, 184, 0.45);
+  background: color-mix(in srgb, #ffffff 72%, transparent);
+  border: 1px solid #e5e5e5;
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
-  color: #fff;
+  color: #171717;
   box-sizing: border-box;
 }
 
 .auth-card :deep(.ant-form-item-label > label) {
-  color: #fff;
+  color: #171717;
 }
 
 .auth-card :deep(.ant-checkbox-wrapper) {
-  color: #fff;
+  color: #171717;
 }
 
 .auth-card :deep(.ant-typography) {
-  color: #fff;
+  color: #171717;
 }
 
 .auth-header {
@@ -152,13 +147,13 @@ const onFinish = async () => {
   margin: 0 0 8px;
   font-size: 24px;
   font-weight: 600;
-  color: #fff;
+  color: #171717;
 }
 
 .auth-subtitle {
   margin: 0;
   font-size: 14px;
-  color: #fff;
+  color: #525252;
 }
 
 .auth-form {
@@ -180,7 +175,23 @@ const onFinish = async () => {
 }
 
 .auth-footer a {
-  color: #22c55e;
+  color: #3b82f6;
+}
+
+:global(html.dark .auth-card) {
+  background: color-mix(in srgb, #0a0a0a 72%, transparent);
+  border-color: #262626;
+  color: #e5e5e5;
+}
+
+:global(html.dark .auth-card .auth-title),
+:global(html.dark .auth-card :where(.auth-footer, .ant-checkbox-wrapper, .ant-typography)),
+:global(html.dark .auth-card :where(.ant-form-item-label > label)) {
+  color: #e5e5e5 !important;
+}
+
+:global(html.dark .auth-card .auth-subtitle) {
+  color: #a3a3a3;
 }
 
 @media (max-width: 640px) {

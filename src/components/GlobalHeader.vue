@@ -35,7 +35,8 @@
                 </span>
               </div>
               <template #overlay>
-                <a-menu @click="({ key }) => key === 'logout' && handleLogout()">
+                <a-menu @click="handleUserMenuClick">
+                  <a-menu-item key="theme">{{ isDark ? '切换浅色主题' : '切换深色主题' }}</a-menu-item>
                   <a-menu-item key="logout">注销</a-menu-item>
                 </a-menu>
               </template>
@@ -52,7 +53,7 @@
 
 <script setup lang="ts">
 // 关键修复：导入 computed
-import { h, ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { MenuProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
@@ -93,6 +94,9 @@ const originItems = ref<MenuProps['items']>([
 // 过滤菜单项
 const filterMenus = (menus: MenuProps['items'] = []) => {
   return menus.filter((menu) => {
+    if (!menu) {
+      return false
+    }
     const menuKey = menu.key as string
     if (menuKey?.startsWith('/admin')) {
       const loginUser = loginUserStore.loginUser
@@ -133,6 +137,20 @@ const handleLogout = async () => {
     message.error('退出异常，请稍后重试')
   }
 }
+
+const isDark = computed(() => document.documentElement.classList.contains('dark'))
+
+const handleUserMenuClick = async (info: { key: string }) => {
+  if (info.key === 'theme') {
+    const nextDark = !document.documentElement.classList.contains('dark')
+    document.documentElement.classList.toggle('dark', nextDark)
+    localStorage.setItem('theme', nextDark ? 'dark' : 'light')
+    return
+  }
+  if (info.key === 'logout') {
+    await handleLogout()
+  }
+}
 </script>
 
 <style scoped>
@@ -141,10 +159,10 @@ const handleLogout = async () => {
   top: 0;
   z-index: 100;
   padding: 0 28px;
-  background: rgba(15, 23, 42, 0.88);
+  background: color-mix(in srgb, #ffffff 78%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.32);
+  border-bottom: 1px solid #e5e5e5;
 }
 
 .header-left {
@@ -157,9 +175,7 @@ const handleLogout = async () => {
   height: 42px;
   width: 42px;
   border-radius: 14px;
-  box-shadow:
-    0 12px 30px rgba(15, 23, 42, 0.7),
-    0 0 0 1px rgba(148, 163, 184, 0.6);
+  border: 1px solid #e5e5e5;
   object-fit: cover;
 }
 
@@ -168,8 +184,7 @@ const handleLogout = async () => {
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: #e5e7eb;
-  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.9);
+  color: #171717;
 }
 
 .ant-menu-horizontal {
@@ -183,7 +198,7 @@ const handleLogout = async () => {
 }
 
 .user-name {
-  color: #e5e7eb;
+  color: #171717;
   font-size: 14px;
 }
 
@@ -198,8 +213,8 @@ const handleLogout = async () => {
 }
 
 .avatar-trigger:hover {
-  background: rgba(227, 240, 235, 0.15);
-  color: #ffffff;
+  background: rgba(59, 130, 246, 0.1);
+  color: #171717;
 }
 
 .user-login-status :deep(.ant-btn-primary) {
@@ -210,19 +225,13 @@ const handleLogout = async () => {
   padding: 0 22px;
   height: 36px;
   font-weight: 500;
-  border: none;
-  background-image: linear-gradient(135deg, #22c55e, #4ade80);
-  box-shadow:
-    0 10px 25px rgba(22, 163, 74, 0.5),
-    0 0 0 1px rgba(22, 163, 74, 0.6);
+  border: 1px solid #e5e5e5;
+  background: #3b82f6;
 }
 
 .user-login-status :deep(.ant-btn-primary:hover),
 .user-login-status :deep(.ant-btn-primary:focus) {
-  background-image: linear-gradient(135deg, #16a34a, #22c55e);
-  box-shadow:
-    0 14px 32px rgba(21, 128, 61, 0.7),
-    0 0 0 1px rgba(22, 163, 74, 0.7);
+  background: #2563eb;
 }
 
 :deep(.ant-menu) {
@@ -234,36 +243,66 @@ const handleLogout = async () => {
 }
 
 :deep(.ant-menu-item) {
-  color: #9ca3af;
+  color: #525252;
   font-weight: 500;
 }
 
 :deep(.ant-menu-item:hover) {
-  color: #e5e7eb;
+  color: #171717;
 }
 
 :deep(.ant-menu-item-selected) {
-  color: #22c55e;
+  color: #3b82f6;
 }
 
 :deep(.ant-menu-item-selected::after) {
-  border-bottom: 2px solid #22c55e;
+  border-bottom: 2px solid #3b82f6;
 }
 
 /* 头像下拉菜单样式（非 scoped 以作用于 overlay） */
 :global(.header-user-dropdown .ant-dropdown-menu) {
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
   border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 :global(.header-user-dropdown .ant-dropdown-menu-item) {
-  color: #e5e7eb;
+  color: #171717;
 }
 
 :global(.header-user-dropdown .ant-dropdown-menu-item:hover) {
-  background: rgba(148, 163, 184, 0.2);
-  color: #fff;
+  background: rgba(59, 130, 246, 0.1);
+  color: #171717;
+}
+
+:global(html.dark .header) {
+  background: color-mix(in srgb, #0a0a0a 72%, transparent);
+  border-bottom-color: #262626;
+}
+
+:global(html.dark .site-title),
+:global(html.dark .user-name),
+:global(html.dark .ant-menu-item),
+:global(html.dark .ant-menu-item:hover) {
+  color: #e5e5e5 !important;
+}
+
+:global(html.dark .logo),
+:global(html.dark .user-login-status .ant-btn-primary) {
+  border-color: #262626 !important;
+}
+
+:global(html.dark .header-user-dropdown .ant-dropdown-menu) {
+  background: #0a0a0a;
+  border-color: #262626;
+}
+
+:global(html.dark .header-user-dropdown .ant-dropdown-menu-item) {
+  color: #e5e5e5;
+}
+
+:global(html.dark .header-user-dropdown .ant-dropdown-menu-item:hover) {
+  background: rgba(59, 130, 246, 0.18);
+  color: #ffffff;
 }
 </style>
