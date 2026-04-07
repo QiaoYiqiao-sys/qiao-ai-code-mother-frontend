@@ -33,7 +33,7 @@ import GlobalFooter from '@/components/GlobalFooter.vue'
 
 .main-content {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1500px;
   margin: 96px auto 32px;
   padding: 32px 32px 40px;
   background: rgba(15, 23, 42, 0.78);
