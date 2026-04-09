@@ -18,6 +18,9 @@ const app = ref<API.AppVO>({})
 const form = reactive({
   appName: '',
   cover: '',
+  initPrompt: '',
+  codeGenType: '',
+  deployKey: '',
   priority: 0,
 })
 
@@ -31,6 +34,9 @@ const loadApp = async () => {
       app.value = res.data.data
       form.appName = res.data.data.appName || ''
       form.cover = res.data.data.cover || ''
+      form.initPrompt = res.data.data.initPrompt || ''
+      form.codeGenType = res.data.data.codeGenType || ''
+      form.deployKey = res.data.data.deployKey || ''
       form.priority = res.data.data.priority || 0
     } else {
       message.error(res.data.message || '获取应用信息失败')
@@ -55,6 +61,9 @@ const handleSave = async () => {
         id: appId.value,
         appName: form.appName,
         cover: form.cover,
+        initPrompt: form.initPrompt,
+        codeGenType: form.codeGenType,
+        deployKey: form.deployKey,
         priority: form.priority,
       })
     } else {
@@ -122,6 +131,31 @@ onMounted(() => {
               />
             </div>
             <div>
+              <label class="mb-2 block text-sm font-medium">初始化 Prompt</label>
+              <textarea
+                v-model="form.initPrompt"
+                rows="4"
+                class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                placeholder="请输入初始化 Prompt"
+              />
+            </div>
+            <div>
+              <label class="mb-2 block text-sm font-medium">代码生成类型</label>
+              <input
+                v-model="form.codeGenType"
+                class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                placeholder="请输入代码生成类型"
+              />
+            </div>
+            <div>
+              <label class="mb-2 block text-sm font-medium">部署标识</label>
+              <input
+                v-model="form.deployKey"
+                class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                placeholder="请输入部署标识"
+              />
+            </div>
+            <div>
               <label class="mb-2 block text-sm font-medium">优先级</label>
               <input
                 v-model.number="form.priority"
@@ -135,8 +169,12 @@ onMounted(() => {
           <!-- 只读信息 -->
           <div class="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-500 dark:bg-neutral-800/50 dark:text-neutral-400">
             <p>应用 ID: {{ app.id }}</p>
-            <p class="mt-1">代码类型: {{ app.codeGenType || '-' }}</p>
+            <p v-if="!isAdmin" class="mt-1">代码类型: {{ app.codeGenType || '-' }}</p>
+            <p class="mt-1">部署时间: {{ app.deployedTime || '-' }}</p>
+            <p class="mt-1">创建者 ID: {{ app.userId || '-' }}</p>
+            <p class="mt-1">编辑时间: {{ app.editTime || '-' }}</p>
             <p class="mt-1">创建时间: {{ app.createTime || '-' }}</p>
+            <p class="mt-1">更新时间: {{ app.updateTime || '-' }}</p>
           </div>
 
           <!-- 按钮 -->

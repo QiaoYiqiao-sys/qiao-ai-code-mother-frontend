@@ -3,7 +3,7 @@ import { message } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { deleteUser, listUserVoByPage, userLogout, userLogin, userRegister } from '@/api/userController'
+import { deleteUser, listUserVoByPage, updateUser, userLogout, userLogin, userRegister } from '@/api/userController'
 import {
   addApp,
   listMyAppVoByPage,
@@ -140,6 +140,8 @@ const loadGoodApps = async () => {
     const res = await listGoodAppVoByPage({
       pageNum: goodAppPagination.current,
       pageSize: goodAppPagination.pageSize,
+      sortField: 'creatTime',
+      sortOrder: 'desc',
       appName: goodAppSearch.value || undefined,
     })
     if (res.data.code === 0 && res.data.data) {
@@ -195,6 +197,45 @@ const handleDeleteUser = async (id?: number) => {
     }
   } catch {
     message.error('删除异常')
+  }
+}
+
+// ========== 用户编辑弹窗 ==========
+const userEditVisible = ref(false)
+const userEditSaving = ref(false)
+const userEditForm = reactive<API.UserUpdateRequest>({
+  id: undefined,
+  userName: '',
+  userAvatar: '',
+  userProfile: '',
+  userRole: '',
+})
+
+const openUserEdit = (item: API.UserVO) => {
+  userEditForm.id = item.id
+  userEditForm.userName = item.userName || ''
+  userEditForm.userAvatar = item.userAvatar || ''
+  userEditForm.userProfile = item.userProfile || ''
+  userEditForm.userRole = item.userRole || ''
+  userEditVisible.value = true
+}
+
+const handleUserEditSave = async () => {
+  if (!userEditForm.id) return
+  try {
+    userEditSaving.value = true
+    const res = await updateUser({ ...userEditForm })
+    if (res.data.code === 0) {
+      message.success('更新成功')
+      userEditVisible.value = false
+      loadUsers()
+    } else {
+      message.error(res.data.message || '更新失败')
+    }
+  } catch {
+    message.error('更新异常')
+  } finally {
+    userEditSaving.value = false
   }
 }
 
@@ -593,36 +634,51 @@ onMounted(() => {
           <button type="button" class="rounded-2xl border border-neutral-200 bg-[#3B82F6] px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-blue-500 dark:border-neutral-800" @click="adminAppPagination.current = 1; loadAdminApps()">搜索</button>
         </div>
         <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-200 dark:border-neutral-800">
-          <table class="min-w-full text-left text-sm">
+          <table class="w-max min-w-full text-left text-sm whitespace-nowrap">
             <thead class="bg-neutral-100/80 dark:bg-neutral-900/70">
               <tr>
                 <th class="px-4 py-3">ID</th>
                 <th class="px-4 py-3">应用名称</th>
+                <th class="px-4 py-3">应用封面</th>
+                <th class="px-4 py-3">初始化Prompt</th>
                 <th class="px-4 py-3">代码类型</th>
+                <th class="px-4 py-3">部署标识</th>
+                <th class="px-4 py-3">部署时间</th>
                 <th class="px-4 py-3">优先级</th>
                 <th class="px-4 py-3">创建者</th>
+                <th class="px-4 py-3">编辑时间</th>
                 <th class="px-4 py-3">创建时间</th>
-                <th class="px-4 py-3">操作</th>
+                <th class="px-4 py-3">更新时间</th>
+                <th class="sticky right-0 bg-neutral-100/80 px-4 py-3 dark:bg-neutral-900/70">操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="adminAppsLoading"><td class="px-4 py-4 text-neutral-500" colspan="7">加载中...</td></tr>
+              <tr v-if="adminAppsLoading"><td class="px-4 py-4 text-neutral-500" colspan="13">加载中...</td></tr>
               <tr v-for="app in adminApps" v-else :key="app.id" class="border-t border-neutral-200 transition-colors duration-200 hover:bg-neutral-100/60 dark:border-neutral-800 dark:hover:bg-neutral-900/50">
                 <td class="px-4 py-3">{{ app.id }}</td>
                 <td class="px-4 py-3">{{ app.appName || '-' }}</td>
+                <td class="px-4 py-3">
+                  <img v-if="app.cover" :src="app.cover" class="h-8 w-8 rounded object-cover" />
+                  <span v-else>-</span>
+                </td>
+                <td class="max-w-[300px] truncate px-4 py-3" :title="app.initPrompt">{{ app.initPrompt || '-' }}</td>
                 <td class="px-4 py-3">{{ app.codeGenType || '-' }}</td>
+                <td class="px-4 py-3">{{ app.deployKey || '-' }}</td>
+                <td class="px-4 py-3">{{ app.deployedTime || '-' }}</td>
                 <td class="px-4 py-3">{{ app.priority ?? 0 }}</td>
                 <td class="px-4 py-3">{{ app.user?.userName || '-' }}</td>
+                <td class="px-4 py-3">{{ app.editTime || '-' }}</td>
                 <td class="px-4 py-3">{{ app.createTime || '-' }}</td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-3">{{ app.updateTime || '-' }}</td>
+                <td class="sticky right-0 bg-white px-4 py-3 dark:bg-[#0A0A0A]">
                   <div class="flex items-center gap-2">
-                    <button type="button" class="text-[#3B82F6] transition-colors hover:text-blue-400" @click="goTo(`/app/edit/${app.id}`)">编辑</button>
-                    <button type="button" class="text-green-500 transition-colors hover:text-green-400" @click="handleSetFeatured(app.id)">精选</button>
-                    <button type="button" class="text-red-500 transition-colors hover:text-red-600" @click="handleAdminDeleteApp(app.id)">删除</button>
+                    <button type="button" class="rounded-lg bg-[#3B82F6] px-3 py-1 text-xs text-white transition-all hover:bg-blue-600" @click="goTo(`/app/edit/${app.id}`)">编辑</button>
+                    <button type="button" class="rounded-lg bg-[#10B981] px-3 py-1 text-xs text-white transition-all hover:bg-emerald-600" @click="handleSetFeatured(app.id)">精选</button>
+                    <button type="button" class="rounded-lg bg-[#EF4444] px-3 py-1 text-xs text-white transition-all hover:bg-red-600" @click="handleAdminDeleteApp(app.id)">删除</button>
                   </div>
                 </td>
               </tr>
-              <tr v-if="!adminAppsLoading && adminApps.length === 0"><td class="px-4 py-4 text-neutral-500" colspan="7">暂无数据</td></tr>
+              <tr v-if="!adminAppsLoading && adminApps.length === 0"><td class="px-4 py-4 text-neutral-500" colspan="13">暂无数据</td></tr>
             </tbody>
           </table>
         </div>
@@ -649,31 +705,45 @@ onMounted(() => {
           </select>
           <button type="button" class="rounded-2xl border border-neutral-200 bg-[#3B82F6] px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-blue-500 dark:border-neutral-800" @click="userPagination.current = 1; loadUsers()">搜索</button>
         </div>
-        <div class="mt-6 overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800">
-          <table class="min-w-full text-left text-sm">
+        <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-200 dark:border-neutral-800">
+          <table class="w-max min-w-full text-left text-sm whitespace-nowrap">
             <thead class="bg-neutral-100/80 dark:bg-neutral-900/70">
               <tr>
                 <th class="px-4 py-3">ID</th>
                 <th class="px-4 py-3">账号</th>
                 <th class="px-4 py-3">用户名</th>
+                <th class="px-4 py-3">头像</th>
+                <th class="px-4 py-3">简介</th>
                 <th class="px-4 py-3">角色</th>
+                <th class="px-4 py-3">编辑时间</th>
                 <th class="px-4 py-3">创建时间</th>
-                <th class="px-4 py-3">操作</th>
+                <th class="px-4 py-3">更新时间</th>
+                <th class="sticky right-0 bg-neutral-100/80 px-4 py-3 dark:bg-neutral-900/70">操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="userLoading"><td class="px-4 py-4 text-neutral-500" colspan="6">加载中...</td></tr>
+              <tr v-if="userLoading"><td class="px-4 py-4 text-neutral-500" colspan="10">加载中...</td></tr>
               <tr v-for="item in users" v-else :key="item.id" class="border-t border-neutral-200 transition-colors duration-200 hover:bg-neutral-100/60 dark:border-neutral-800 dark:hover:bg-neutral-900/50">
                 <td class="px-4 py-3">{{ item.id }}</td>
                 <td class="px-4 py-3">{{ item.userAccount }}</td>
                 <td class="px-4 py-3">{{ item.userName }}</td>
-                <td class="px-4 py-3">{{ item.userRole }}</td>
-                <td class="px-4 py-3">{{ item.createTime }}</td>
                 <td class="px-4 py-3">
-                  <button type="button" class="text-red-500 transition-colors hover:text-red-600" @click="handleDeleteUser(item.id)">删除</button>
+                  <img v-if="item.userAvatar" :src="item.userAvatar" class="h-8 w-8 rounded-full object-cover" />
+                  <span v-else>-</span>
+                </td>
+                <td class="max-w-[200px] truncate px-4 py-3" :title="item.userProfile">{{ item.userProfile || '-' }}</td>
+                <td class="px-4 py-3">{{ item.userRole }}</td>
+                <td class="px-4 py-3">{{ item.editTime || '-' }}</td>
+                <td class="px-4 py-3">{{ item.createTime }}</td>
+                <td class="px-4 py-3">{{ item.updateTime || '-' }}</td>
+                <td class="sticky right-0 bg-white px-4 py-3 dark:bg-[#0A0A0A]">
+                  <div class="flex items-center gap-2">
+                    <button type="button" class="rounded-lg bg-[#3B82F6] px-3 py-1 text-xs text-white transition-all hover:bg-blue-600" @click="openUserEdit(item)">编辑</button>
+                    <button type="button" class="rounded-lg bg-[#EF4444] px-3 py-1 text-xs text-white transition-all hover:bg-red-600" @click="handleDeleteUser(item.id)">删除</button>
+                  </div>
                 </td>
               </tr>
-              <tr v-if="!userLoading && users.length === 0"><td class="px-4 py-4 text-neutral-500" colspan="6">暂无数据</td></tr>
+              <tr v-if="!userLoading && users.length === 0"><td class="px-4 py-4 text-neutral-500" colspan="10">暂无数据</td></tr>
             </tbody>
           </table>
         </div>
@@ -727,6 +797,35 @@ onMounted(() => {
           </a-form>
         </a-tab-pane>
       </a-tabs>
+    </a-modal>
+
+    <!-- 用户编辑弹窗 -->
+    <a-modal v-model:open="userEditVisible" title="编辑用户" :footer="null" :width="480" centered destroyOnClose>
+      <div class="space-y-4 pt-4">
+        <div>
+          <label class="mb-1 block text-sm font-medium">用户名</label>
+          <a-input v-model:value="userEditForm.userName" placeholder="请输入用户名" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">头像 URL</label>
+          <a-input v-model:value="userEditForm.userAvatar" placeholder="请输入头像图片 URL" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">简介</label>
+          <a-textarea v-model:value="userEditForm.userProfile" :rows="3" placeholder="请输入用户简介" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium">角色</label>
+          <a-select v-model:value="userEditForm.userRole" class="w-full">
+            <a-select-option value="user">普通用户</a-select-option>
+            <a-select-option value="admin">管理员</a-select-option>
+          </a-select>
+        </div>
+        <div class="flex items-center gap-3 pt-2">
+          <a-button type="primary" :loading="userEditSaving" @click="handleUserEditSave">保存</a-button>
+          <a-button @click="userEditVisible = false">取消</a-button>
+        </div>
+      </div>
     </a-modal>
   </div>
 </template>
