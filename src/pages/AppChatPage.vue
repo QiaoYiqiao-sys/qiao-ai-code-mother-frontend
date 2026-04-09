@@ -3,7 +3,7 @@ import { message } from 'ant-design-vue'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { getAppVoById } from '@/api/appController'
+import { getAppVoById, deleteApp } from '@/api/appController'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
@@ -197,8 +197,29 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 }
 
+const showAppDetail = ref(false)
+
+const isOwnerOrAdmin = computed(() => {
+  const user = loginUserStore.loginUser
+  return user.id === app.value.userId || user.userRole === 'admin'
+})
+
 const handleDeploy = () => {
   message.info('部署功能即将上线')
+}
+
+const handleDeleteApp = async () => {
+  try {
+    const res = await deleteApp({ id: appId.value })
+    if (res.data.code === 0) {
+      message.success('删除成功')
+      router.push('/')
+    } else {
+      message.error(res.data.message || '删除失败')
+    }
+  } catch {
+    message.error('删除异常')
+  }
 }
 
 const handleRefreshPreview = () => {
@@ -207,8 +228,15 @@ const handleRefreshPreview = () => {
   }
 }
 
+const handleClickOutside = (e: MouseEvent) => {
+  if (showAppDetail.value && !(e.target as HTMLElement).closest('.relative')) {
+    showAppDetail.value = false
+  }
+}
+
 onMounted(() => {
   loadApp()
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
@@ -216,6 +244,7 @@ onUnmounted(() => {
     sseAbortController.abort()
     sseAbortController = null
   }
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -258,11 +287,59 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- 右侧：刷新 + 部署 -->
+      <!-- 右侧：刷新 + 应用详情 + 部署 -->
       <div class="flex items-center gap-2">
         <button v-if="previewUrl" type="button" class="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800" @click="handleRefreshPreview" title="刷新预览">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
         </button>
+        <!-- 应用详情 -->
+        <div class="relative">
+          <button
+            type="button"
+            class="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition-all hover:border-[#3B82F6] hover:text-[#3B82F6] dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-blue-400 dark:hover:text-blue-400"
+            @click="showAppDetail = !showAppDetail"
+          >
+            应用详情
+          </button>
+          <!-- 悬浮窗 -->
+          <div v-if="showAppDetail" class="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-neutral-200 bg-white p-4 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+            <!-- 基础信息 -->
+            <div class="space-y-3">
+              <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">应用信息</h4>
+              <!-- 创建者 -->
+              <div class="flex items-center gap-2">
+                <span class="w-14 flex-shrink-0 text-xs text-neutral-400">创建者</span>
+                <div class="flex items-center gap-2">
+                  <img v-if="app.user?.userAvatar" :src="app.user.userAvatar" class="h-5 w-5 rounded-full object-cover" />
+                  <div v-else class="flex h-5 w-5 items-center justify-center rounded-full bg-[#3B82F6] text-[10px] font-bold text-white">{{ (app.user?.userName || '?')[0] }}</div>
+                  <span class="text-xs text-neutral-700 dark:text-neutral-300">{{ app.user?.userName || '未知' }}</span>
+                </div>
+              </div>
+              <!-- 创建时间 -->
+              <div class="flex items-center gap-2">
+                <span class="w-14 flex-shrink-0 text-xs text-neutral-400">创建时间</span>
+                <span class="text-xs text-neutral-700 dark:text-neutral-300">{{ app.createTime || '-' }}</span>
+              </div>
+            </div>
+            <!-- 操作栏（仅本人或管理员） -->
+            <div v-if="isOwnerOrAdmin" class="mt-4 flex gap-2 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+              <button
+                type="button"
+                class="flex-1 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition-all hover:border-[#3B82F6] hover:text-[#3B82F6] dark:border-neutral-700 dark:text-neutral-300"
+                @click="router.push(`/app/edit/${appId}`); showAppDetail = false"
+              >
+                修改
+              </button>
+              <button
+                type="button"
+                class="flex-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 transition-all hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20"
+                @click="handleDeleteApp"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
         <button
           type="button"
           class="rounded-lg bg-[#3B82F6] px-4 py-1.5 text-xs font-medium text-white transition-all hover:bg-blue-500"

@@ -558,17 +558,20 @@ onMounted(() => {
               :key="app.id"
               class="group cursor-pointer overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all duration-200 hover:border-[#3B82F6] hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
             >
-              <div class="aspect-video w-full overflow-hidden bg-neutral-100 dark:bg-neutral-800" @click="goTo(`/app/chat/${app.id}`)">
+              <div class="relative aspect-video w-full overflow-hidden bg-neutral-100 dark:bg-neutral-800">
                 <img v-if="app.cover" :src="app.cover" class="h-full w-full object-cover" />
                 <div v-else class="flex h-full items-center justify-center text-3xl font-bold text-white" :style="{ background: getAppCover(app.id) }">{{ (app.appName || 'App')[0] }}</div>
+                <div class="absolute inset-0 flex items-center justify-center gap-3 bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <button type="button" class="rounded-lg bg-[#3B82F6] px-3 py-1.5 text-xs font-medium text-white shadow transition-all hover:bg-blue-600" @click="goTo(`/app/chat/${app.id}`)">查看对话</button>
+                  <a v-if="app.deployKey" :href="`/${app.deployKey}`" target="_blank" class="rounded-lg bg-[#10B981] px-3 py-1.5 text-xs font-medium text-white shadow transition-all hover:bg-emerald-600" @click.stop>查看作品</a>
+                </div>
               </div>
-              <div class="p-3">
-                <div class="flex items-center justify-between">
-                  <h3 class="truncate text-sm font-medium" @click="goTo(`/app/chat/${app.id}`)">{{ app.appName || '未命名应用' }}</h3>
-                  <div class="flex items-center gap-1">
-                    <button type="button" class="text-xs text-neutral-400 transition-colors hover:text-[#3B82F6]" @click="goTo(`/app/edit/${app.id}`)">编辑</button>
-                    <button type="button" class="text-xs text-neutral-400 transition-colors hover:text-red-500" @click="handleDeleteMyApp(app.id)">删除</button>
-                  </div>
+              <div class="flex items-center gap-2.5 p-3">
+                <img v-if="app.user?.userAvatar" :src="app.user.userAvatar" class="h-8 w-8 flex-shrink-0 rounded-full object-cover" />
+                <div v-else class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3B82F6] text-xs font-bold text-white">{{ (app.user?.userName || '?')[0] }}</div>
+                <div class="min-w-0 flex-1">
+                  <h3 class="truncate text-sm font-medium">{{ app.appName || '未命名应用' }}</h3>
+                  <p class="truncate text-xs text-neutral-400">{{ app.user?.userName || '未知用户' }}</p>
                 </div>
               </div>
             </div>
@@ -602,15 +605,22 @@ onMounted(() => {
               v-for="app in goodApps"
               :key="app.id"
               class="group cursor-pointer overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all duration-200 hover:border-[#3B82F6] hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
-              @click="goTo(`/app/chat/${app.id}`)"
             >
-              <div class="aspect-video w-full overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+              <div class="relative aspect-video w-full overflow-hidden bg-neutral-100 dark:bg-neutral-800">
                 <img v-if="app.cover" :src="app.cover" class="h-full w-full object-cover" />
                 <div v-else class="flex h-full items-center justify-center text-3xl font-bold text-white" :style="{ background: getAppCover(app.id) }">{{ (app.appName || 'App')[0] }}</div>
+                <div class="absolute inset-0 flex items-center justify-center gap-3 bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <button type="button" class="rounded-lg bg-[#3B82F6] px-3 py-1.5 text-xs font-medium text-white shadow transition-all hover:bg-blue-600" @click="goTo(`/app/chat/${app.id}`)">查看对话</button>
+                  <a v-if="app.deployKey" :href="`/${app.deployKey}`" target="_blank" class="rounded-lg bg-[#10B981] px-3 py-1.5 text-xs font-medium text-white shadow transition-all hover:bg-emerald-600" @click.stop>查看作品</a>
+                </div>
               </div>
-              <div class="p-3">
-                <h3 class="truncate text-sm font-medium">{{ app.appName || '未命名应用' }}</h3>
-                <p v-if="app.user?.userName" class="mt-1 truncate text-xs text-neutral-400">by {{ app.user.userName }}</p>
+              <div class="flex items-center gap-2.5 p-3">
+                <img v-if="app.user?.userAvatar" :src="app.user.userAvatar" class="h-8 w-8 flex-shrink-0 rounded-full object-cover" />
+                <div v-else class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3B82F6] text-xs font-bold text-white">{{ (app.user?.userName || '?')[0] }}</div>
+                <div class="min-w-0 flex-1">
+                  <h3 class="truncate text-sm font-medium">{{ app.appName || '未命名应用' }}</h3>
+                  <p class="truncate text-xs text-neutral-400">{{ app.user?.userName || '未知用户' }}</p>
+                </div>
               </div>
             </div>
           </div>
