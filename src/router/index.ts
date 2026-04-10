@@ -30,6 +30,11 @@ const router = createRouter({
       component: HomePage,
     },
     {
+      path: '/admin/chatManage',
+      name: '对话管理',
+      component: HomePage,
+    },
+    {
       path: '/about',
       name: '关于',
       component: HomePage,

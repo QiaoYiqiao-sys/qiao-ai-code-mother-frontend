@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { getAppVoById, deleteApp } from '@/api/appController'
+import { listAppChatHistory } from '@/api/chatHistoryController'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
@@ -27,7 +28,15 @@ const streaming = ref(false)
 const previewUrl = ref('')
 const previewMode = ref<'preview' | 'code'>('preview')
 const messageListRef = ref<HTMLElement>()
+const userScrolledUp = ref(false)
 let sseAbortController: AbortController | null = null
+
+const handleMessageListScroll = () => {
+  const el = messageListRef.value
+  if (!el) return
+  // If user is within 80px of the bottom, consider them "at bottom"
+  userScrolledUp.value = el.scrollTop + el.clientHeight < el.scrollHeight - 80
+}
 
 const md = new MarkdownIt({
   html: true,
@@ -48,29 +57,75 @@ const renderMarkdown = (content: string) => {
   return md.render(content)
 }
 
-const chatStorageKey = computed(() => `chat_messages_${appId.value}`)
+// ========== 对话历史游标分页 ==========
+const historyLoading = ref(false)
+const hasMoreHistory = ref(true)
+const oldestCreateTime = ref<string | undefined>(undefined)
+const historyLoadedOnce = ref(false) // 标记是否已成功加载过一次历史
 
-const saveMessages = () => {
+/**
+ * 加载对话历史
+ * @param isFirstLoad 是否为首次加载（首次加载后滚动到底部）
+ * @returns 本次加载的消息数量，失败返回 -1
+ */
+const loadChatHistory = async (isFirstLoad = false): Promise<number> => {
+  if (historyLoading.value || !hasMoreHistory.value) return 0
   try {
-    localStorage.setItem(chatStorageKey.value, JSON.stringify(messages.value))
-  } catch {}
-}
+    historyLoading.value = true
+    const el = messageListRef.value
+    const prevScrollHeight = el?.scrollHeight || 0
 
-const loadMessages = () => {
-  try {
-    const saved = localStorage.getItem(chatStorageKey.value)
-    if (saved) {
-      messages.value = JSON.parse(saved)
-      scrollToBottom()
-      return true
+    const res = await listAppChatHistory({
+      appId: appId.value,
+      pageSize: 10,
+      lastCreateTime: oldestCreateTime.value,
+    })
+    if (res.data.code === 0 && res.data.data) {
+      const records = res.data.data.records || []
+      if (records.length < 10) {
+        hasMoreHistory.value = false
+      }
+      historyLoadedOnce.value = true
+      if (records.length > 0) {
+        // records 按 createTime 升序排列
+        const sorted = [...records].sort(
+          (a, b) => new Date(a.createTime || 0).getTime() - new Date(b.createTime || 0).getTime(),
+        )
+        // 更新游标为最早一条的 createTime
+        oldestCreateTime.value = sorted[0].createTime
+        // 转换为 ChatMessage 格式，插入到头部
+        const historyMessages: ChatMessage[] = sorted.map((r) => ({
+          role: (r.messageType as 'user' | 'ai') || 'ai',
+          content: r.message || '',
+        }))
+        messages.value.unshift(...historyMessages)
+
+        if (isFirstLoad) {
+          // 首次加载：滚动到底部
+          scrollToBottom(true)
+        } else {
+          // 加载更多：保持滚动位置
+          nextTick(() => {
+            if (el) {
+              el.scrollTop = el.scrollHeight - prevScrollHeight
+            }
+          })
+        }
+      }
+      return records.length
     }
-  } catch {}
-  return false
+    return -1
+  } catch {
+    message.error('加载对话历史异常')
+    return -1
+  } finally {
+    historyLoading.value = false
+  }
 }
 
-const scrollToBottom = () => {
+const scrollToBottom = (force = false) => {
   nextTick(() => {
-    if (messageListRef.value) {
+    if (messageListRef.value && (force || !userScrolledUp.value)) {
       messageListRef.value.scrollTop = messageListRef.value.scrollHeight
     }
   })
@@ -81,13 +136,21 @@ const loadApp = async () => {
     const res = await getAppVoById({ id: appId.value })
     if (res.data.code === 0 && res.data.data) {
       app.value = res.data.data
-      const hasHistory = loadMessages()
-      if (app.value.codeGenType) {
-        // 已生成过代码，直接展示预览
+
+      // 1. 从后端加载对话历史
+      const loadedCount = await loadChatHistory(true)
+
+      // 2. 有对话记录且已生成过代码 → 展示预览
+      if (messages.value.length >= 2 && app.value.codeGenType) {
         updatePreview()
       }
-      if (!hasHistory && app.value.initPrompt) {
-        sendMessage(app.value.initPrompt, true)
+
+      // 3. 仅当：历史接口成功返回 0 条 + 自己的 app + 有 initPrompt → 自动触发
+      if (loadedCount === 0 && historyLoadedOnce.value) {
+        const isOwner = loginUserStore.loginUser.id === app.value.userId
+        if (isOwner && app.value.initPrompt) {
+          sendMessage(app.value.initPrompt, true)
+        }
       }
     } else {
       message.error(res.data.message || '获取应用信息失败')
@@ -101,7 +164,8 @@ const sendMessage = (text: string, isInit = false) => {
   if (!text.trim() || streaming.value) return
 
   messages.value.push({ role: 'user', content: text })
-  scrollToBottom()
+  userScrolledUp.value = false
+  scrollToBottom(true)
 
   messages.value.push({ role: 'ai', content: '' })
   streaming.value = true
@@ -157,20 +221,13 @@ const sendMessage = (text: string, isInit = false) => {
       streaming.value = false
       sending.value = false
       sseAbortController = null
-      saveMessages()
       // 重新获取应用信息以拿到最新的 deployKey
       try {
         const res = await getAppVoById({ id: appId.value })
-        console.log('[DEBUG] 重新获取应用信息:', JSON.stringify(res.data.data, null, 2))
         if (res.data.code === 0 && res.data.data) {
           app.value = res.data.data
-          console.log('[DEBUG] deployKey:', app.value.deployKey)
-          console.log('[DEBUG] codeGenType:', app.value.codeGenType)
         }
-      } catch (e) {
-        console.error('[DEBUG] 获取应用信息失败:', e)
-      }
-      console.log('[DEBUG] 最终预览URL将使用 deployKey:', app.value.deployKey)
+      } catch {}
       updatePreview()
     })
 
@@ -219,6 +276,44 @@ const handleDeleteApp = async () => {
     }
   } catch {
     message.error('删除异常')
+  }
+}
+
+// ========== 代码提取与复制 ==========
+const extractedCodeBlocks = computed(() => {
+  const blocks: { lang: string; code: string; highlighted: string }[] = []
+  const aiContent = messages.value
+    .filter((m) => m.role === 'ai')
+    .map((m) => m.content)
+    .join('\n\n')
+  const regex = /```(\w*)\n([\s\S]*?)```/g
+  let match
+  while ((match = regex.exec(aiContent)) !== null) {
+    const lang = match[1] || 'plaintext'
+    const code = match[2].trimEnd()
+    let highlighted: string
+    if (hljs.getLanguage(lang)) {
+      try {
+        highlighted = hljs.highlight(code, { language: lang }).value
+      } catch {
+        highlighted = md.utils.escapeHtml(code)
+      }
+    } else {
+      highlighted = md.utils.escapeHtml(code)
+    }
+    blocks.push({ lang, code, highlighted })
+  }
+  return blocks
+})
+
+const copiedIndex = ref<number | null>(null)
+const copyCode = async (code: string, index: number) => {
+  try {
+    await navigator.clipboard.writeText(code)
+    copiedIndex.value = index
+    setTimeout(() => { copiedIndex.value = null }, 2000)
+  } catch {
+    message.error('复制失败')
   }
 }
 
@@ -357,7 +452,18 @@ onUnmounted(() => {
       <div class="flex w-[440px] flex-shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-[#111]">
 
         <!-- 消息列表 -->
-        <div ref="messageListRef" class="flex-1 overflow-y-auto px-4 py-5 space-y-5">
+        <div ref="messageListRef" class="flex-1 overflow-y-auto px-4 py-5 space-y-5" @scroll="handleMessageListScroll">
+          <!-- 加载更多 -->
+          <div v-if="hasMoreHistory && messages.length > 0" class="pb-2 text-center">
+            <button
+              type="button"
+              class="rounded-lg px-4 py-1.5 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+              :disabled="historyLoading"
+              @click="loadChatHistory"
+            >
+              {{ historyLoading ? '加载中...' : '加载更多历史消息' }}
+            </button>
+          </div>
           <div v-for="(msg, i) in messages" :key="i">
             <!-- AI 消息 -->
             <div v-if="msg.role === 'ai'" class="space-y-2">
@@ -389,7 +495,7 @@ onUnmounted(() => {
               v-model="inputText"
               rows="4"
               class="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm outline-none placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
-              placeholder="请描述你的需求或想法，即刻开启创作之旅。Cmd+Enter 发送"
+              placeholder="请描述你想生成的网站，越详细效果越好哦"
               :disabled="streaming"
               @keydown="handleKeydown"
             />
@@ -442,11 +548,26 @@ onUnmounted(() => {
 
         <!-- 代码模式 -->
         <template v-else>
-          <div class="flex flex-1 items-center justify-center">
-            <div v-if="messages.length > 0" class="max-h-full w-full overflow-auto p-6">
-              <pre class="whitespace-pre-wrap break-words rounded-xl bg-neutral-800 p-6 text-xs leading-relaxed text-green-400">{{ messages.filter(m => m.role === 'ai').map(m => m.content).join('\n\n') || '暂无代码输出' }}</pre>
+          <div v-if="extractedCodeBlocks.length > 0" class="flex-1 overflow-y-auto p-6 space-y-4">
+            <div v-for="(block, idx) in extractedCodeBlocks" :key="idx" class="relative rounded-xl bg-neutral-800 overflow-hidden">
+              <div class="flex items-center justify-between px-4 py-2 border-b border-neutral-700">
+                <span class="text-xs text-neutral-400">{{ block.lang }}</span>
+                <button
+                  type="button"
+                  class="flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors"
+                  :class="copiedIndex === idx ? 'text-green-400' : 'text-neutral-400 hover:text-white hover:bg-neutral-700'"
+                  @click="copyCode(block.code, idx)"
+                >
+                  <svg v-if="copiedIndex !== idx" xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                  {{ copiedIndex === idx ? '已复制' : '复制' }}
+                </button>
+              </div>
+              <pre class="overflow-x-auto p-4 text-xs leading-relaxed"><code class="hljs" v-html="block.highlighted"></code></pre>
             </div>
-            <p v-else class="text-sm text-neutral-400">暂无代码输出</p>
+          </div>
+          <div v-else class="flex flex-1 items-center justify-center">
+            <p class="text-sm text-neutral-400">暂无代码输出</p>
           </div>
         </template>
       </div>
