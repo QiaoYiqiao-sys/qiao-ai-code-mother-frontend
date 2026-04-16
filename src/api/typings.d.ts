@@ -138,6 +138,10 @@ declare namespace API {
     id?: number
   }
 
+  type AppDeployRequest = {
+    appId?: number
+  }
+
   type getAppVOByIdByAdminParams = {
     id: number
   }

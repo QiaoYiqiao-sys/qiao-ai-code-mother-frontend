@@ -13,6 +13,8 @@ import {
   updateAppByAdmin,
 } from '@/api/appController'
 import { listAllChatHistoryByPageForAdmin } from '@/api/chatHistoryController'
+import { UserRoleEnum, UserRoleLabels, MessageTypeEnum, MessageTypeLabels, CodeGenTypeEnum, CodeGenTypeLabels } from '@/enums'
+import { buildDeployUrl } from '@/utils'
 import defaultAvatar from '@/assets/logo.png'
 import type { Rule } from 'ant-design-vue/es/form'
 
@@ -21,7 +23,7 @@ const route = useRoute()
 const loginUserStore = useLoginUserStore()
 
 const isDark = computed(() => document.documentElement.classList.contains('dark'))
-const isAdmin = computed(() => loginUserStore.loginUser.userRole === 'admin')
+const isAdmin = computed(() => loginUserStore.loginUser.userRole === UserRoleEnum.ADMIN)
 const isLoggedIn = computed(() => !!loginUserStore.loginUser.id)
 const currentSection = computed<'home' | 'userManage' | 'appManage' | 'chatManage' | 'about'>(() => {
   if (route.path === '/admin/userManage') return 'userManage'
@@ -535,24 +537,25 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen text-neutral-900 transition-colors duration-300 dark:text-neutral-100" :class="gradientTheme ? 'hero-gradient' : 'bg-[#FFFFFF] dark:bg-[#0A0A0A]'">
+  <div class="min-h-screen text-[#2D2318] transition-colors duration-300 dark:text-[#F0EAE3]" :class="gradientTheme ? 'hero-gradient' : 'bg-[#FBF8F5] dark:bg-[#1A1714]'">
     <div v-if="gradientTheme" class="hero-glow"></div>
     <div v-if="gradientTheme" class="hero-grid"></div>
     <!-- Header -->
-    <header class="sticky top-0 z-50 border-b transition-colors duration-200" :class="gradientTheme ? 'border-neutral-800/10 bg-white/40 backdrop-blur-md' : 'border-neutral-200/80 bg-white/75 backdrop-blur-sm dark:border-neutral-800 dark:bg-[#0A0A0A]/70'">
+    <header class="sticky top-0 z-50 border-b transition-colors duration-200" :class="gradientTheme ? 'border-[#3D3630]/10 bg-[#FFFFFF]/40 backdrop-blur-md' : 'border-[#E8E0D8] bg-[#FFFFFF]/75 backdrop-blur-sm dark:border-[#3D3630] dark:bg-[#1A1714]/70'">
       <nav class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 md:px-10">
         <div class="text-lg font-semibold tracking-tight cursor-pointer" @click="goTo('/')">Qiao AI</div>
-        <div class="flex items-center gap-6 text-sm text-neutral-600 dark:text-neutral-300">
+        <div class="flex items-center gap-6 text-sm text-[#7A6E62] dark:text-[#B5A899]">
           <button type="button" class="nav-link" :class="currentSection === 'home' ? 'nav-active' : ''" @click="goTo('/')">首页</button>
           <button v-if="isAdmin" type="button" class="nav-link" :class="currentSection === 'appManage' ? 'nav-active' : ''" @click="goTo('/admin/appManage')">应用管理</button>
           <button v-if="isAdmin" type="button" class="nav-link" :class="currentSection === 'chatManage' ? 'nav-active' : ''" @click="goTo('/admin/chatManage')">对话管理</button>
           <button v-if="isAdmin" type="button" class="nav-link" :class="currentSection === 'userManage' ? 'nav-active' : ''" @click="goTo('/admin/userManage')">用户管理</button>
           <button type="button" class="nav-link" :class="currentSection === 'about' ? 'nav-active' : ''" @click="goTo('/about')">关于</button>
+
         </div>
         <div class="flex items-center gap-3">
-          <button v-if="!isLoggedIn" type="button" class="rounded-2xl border border-neutral-200 bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-500 dark:border-neutral-800" @click="openAuthModal('login')">登录</button>
+          <button v-if="!isLoggedIn" type="button" class="rounded-2xl border border-[#E8E0D8] bg-[#E8734A] px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-[#D4623D] dark:border-[#3D3630]" @click="openAuthModal('login')">登录</button>
           <a-dropdown v-else :trigger="['hover']" placement="bottomRight" overlayClassName="home-avatar-dropdown">
-            <div class="flex cursor-pointer items-center gap-2 rounded-2xl border border-neutral-200 px-2 py-1 transition-colors duration-200 hover:border-[#3B82F6] dark:border-neutral-800">
+            <div class="flex cursor-pointer items-center gap-2 rounded-2xl border border-[#E8E0D8] px-2 py-1 transition-colors duration-200 hover:border-[#E8734A] dark:border-[#3D3630]">
               <a-avatar :size="32" :src="loginUserStore.loginUser.userAvatar || defaultAvatar" />
               <span class="hidden text-sm md:inline">{{ loginUserStore.loginUser.userName || '用户' }}</span>
             </div>
@@ -570,25 +573,25 @@ onMounted(() => {
 
     <!-- ========== 首页 Hero 区域 ========== -->
     <div v-if="currentSection === 'home'" class="relative z-10 mx-auto max-w-3xl px-6 pt-20 pb-16 text-center md:pt-28 md:pb-20">
-      <h1 class="text-4xl font-bold tracking-tight text-neutral-800 md:text-6xl">
+      <h1 class="text-4xl font-bold tracking-tight text-[#2D2318] md:text-6xl">
         AI 应用生成平台
       </h1>
-      <p class="mt-4 text-lg text-neutral-600">一句话轻松创建网站应用</p>
+      <p class="mt-4 text-lg text-[#7A6E62]">一句话轻松创建网站应用</p>
 
       <!-- 提示词输入 -->
       <div class="mx-auto mt-10 max-w-3xl">
-        <div class="rounded-3xl p-6 shadow-xl backdrop-blur-xl" :class="gradientTheme ? 'bg-white/70 shadow-black/5 ring-1 ring-white/60' : 'bg-neutral-50 shadow-neutral-200/60 ring-1 ring-neutral-200 dark:bg-neutral-800 dark:shadow-neutral-900/40 dark:ring-neutral-700'">
+        <div class="rounded-3xl p-6 shadow-[0_8px_32px_rgba(45,35,24,0.14)] backdrop-blur-xl" :class="gradientTheme ? 'bg-[#FFFFFF]/70 shadow-[rgba(45,35,24,0.05)] ring-1 ring-[#FFFFFF]/60' : 'bg-[#F5F0EB] shadow-[#E8E0D8]/60 ring-1 ring-[#E8E0D8] dark:bg-[#2E2924] dark:shadow-[#2D2318]/40 dark:ring-[#3D3630]'">
           <textarea
             v-model="promptText"
             rows="5"
-            class="w-full resize-none bg-transparent text-base leading-relaxed text-neutral-800 outline-none placeholder:text-neutral-400"
+            class="w-full resize-none bg-transparent text-base leading-relaxed text-[#2D2318] outline-none placeholder:text-[#A89B8C]"
             placeholder="帮我创建个人博客网站，⌘+Enter"
             @keydown="handlePromptKeydown"
           />
           <div class="flex items-center justify-end pt-2">
             <button
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-full bg-[#3B82F6] text-white transition-all duration-200 hover:bg-blue-500 disabled:opacity-50"
+              class="flex h-9 w-9 items-center justify-center rounded-full bg-[#E8734A] text-white transition-all duration-200 hover:bg-[#D4623D] disabled:opacity-50"
               :disabled="creating || !promptText.trim()"
               @click="handleCreateApp"
             >
@@ -606,10 +609,10 @@ onMounted(() => {
           v-for="(item, idx) in quickPrompts"
           :key="idx"
           type="button"
-          class="group rounded-xl border border-neutral-800/10 bg-white/40 px-3 py-2.5 text-left backdrop-blur-sm transition-all duration-200 hover:border-neutral-800/20 hover:bg-white/60"
+          class="group rounded-xl border border-[#3D3630]/10 bg-[#FFFFFF]/40 px-3 py-2.5 text-left backdrop-blur-sm transition-all duration-200 hover:border-[#3D3630]/20 hover:bg-[#FFFFFF]/60"
           @click="handleQuickPrompt(item.prompt)"
         >
-          <span class="block text-xs font-medium text-neutral-700 group-hover:text-neutral-900">{{ item.title }}</span>
+          <span class="block text-xs font-medium text-[#7A6E62] group-hover:text-[#2D2318]">{{ item.title }}</span>
         </button>
       </div>
     </div>
@@ -625,35 +628,35 @@ onMounted(() => {
             <div class="flex items-center gap-3">
               <input
                 v-model="myAppSearch"
-                class="rounded-2xl border border-neutral-200 bg-transparent px-4 py-1.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                class="rounded-2xl border border-[#E8E0D8] bg-transparent px-4 py-1.5 text-sm outline-none transition-all duration-200 focus:border-[#E8734A] dark:border-[#3D3630]"
                 placeholder="搜索应用名称"
                 @keydown.enter="myAppPagination.current = 1; loadMyApps()"
               />
-              <button type="button" class="rounded-2xl border border-neutral-200 px-3 py-1.5 text-sm transition-all duration-200 hover:border-[#3B82F6] hover:text-[#3B82F6] dark:border-neutral-800" @click="myAppPagination.current = 1; loadMyApps()">搜索</button>
+              <button type="button" class="rounded-2xl border border-[#E8E0D8] px-3 py-1.5 text-sm transition-all duration-200 hover:border-[#E8734A] hover:text-[#E8734A] dark:border-[#3D3630]" @click="myAppPagination.current = 1; loadMyApps()">搜索</button>
             </div>
           </div>
-          <div v-if="myAppsLoading" class="py-8 text-center text-neutral-400">加载中...</div>
-          <div v-else-if="myApps.length === 0" class="py-8 text-center text-neutral-400">暂无应用，输入提示词创建你的第一个应用</div>
+          <div v-if="myAppsLoading" class="py-8 text-center text-[#A89B8C]">加载中...</div>
+          <div v-else-if="myApps.length === 0" class="py-8 text-center text-[#A89B8C]">暂无应用，输入提示词创建你的第一个应用</div>
           <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div
               v-for="app in myApps"
               :key="app.id"
-              class="group cursor-pointer overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all duration-200 hover:border-[#3B82F6] hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+              class="group cursor-pointer overflow-hidden rounded-2xl border border-[#E8E0D8] bg-[#FFFFFF] transition-all duration-200 hover:border-[#E8734A] hover:shadow-[0_2px_12px_rgba(45,35,24,0.06)] dark:border-[#3D3630] dark:bg-[#1A1714]"
             >
-              <div class="relative aspect-video w-full overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+              <div class="relative aspect-video w-full overflow-hidden bg-[#EDE7E0] dark:bg-[#2E2924]">
                 <img v-if="app.cover" :src="app.cover" class="h-full w-full object-cover" />
                 <div v-else class="flex h-full items-center justify-center text-3xl font-bold text-white" :style="{ background: getAppCover(app.id) }">{{ (app.appName || 'App')[0] }}</div>
-                <div class="absolute inset-0 flex items-center justify-center gap-3 bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                  <button type="button" class="rounded-lg bg-[#3B82F6] px-3 py-1.5 text-xs font-medium text-white shadow transition-all hover:bg-blue-600" @click="goTo(`/app/chat/${app.id}`)">查看对话</button>
-                  <a v-if="app.deployKey" :href="`/${app.deployKey}`" target="_blank" class="rounded-lg bg-[#10B981] px-3 py-1.5 text-xs font-medium text-white shadow transition-all hover:bg-emerald-600" @click.stop>查看作品</a>
+                <div class="absolute inset-0 flex items-center justify-center gap-3 bg-[#2D2318]/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <button type="button" class="rounded-xl bg-[#E8734A] px-3 py-1.5 text-xs font-medium text-white shadow-[0_1px_3px_rgba(45,35,24,0.04)] transition-all hover:bg-[#D4623D]" @click="goTo(`/app/chat/${app.id}`)">查看对话</button>
+                  <a v-if="app.deployKey" :href="buildDeployUrl(app.deployKey)" target="_blank" class="rounded-xl bg-[#2DB87F] px-3 py-1.5 text-xs font-medium text-white shadow-[0_1px_3px_rgba(45,35,24,0.04)] transition-all hover:bg-[#26A06E]" @click.stop>查看作品</a>
                 </div>
               </div>
               <div class="flex items-center gap-2.5 p-3">
                 <img v-if="app.user?.userAvatar" :src="app.user.userAvatar" class="h-8 w-8 flex-shrink-0 rounded-full object-cover" />
-                <div v-else class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3B82F6] text-xs font-bold text-white">{{ (app.user?.userName || '?')[0] }}</div>
+                <div v-else class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#E8734A] text-xs font-bold text-white">{{ (app.user?.userName || '?')[0] }}</div>
                 <div class="min-w-0 flex-1">
                   <h3 class="truncate text-sm font-medium">{{ app.appName || '未命名应用' }}</h3>
-                  <p class="truncate text-xs text-neutral-400">{{ app.user?.userName || '未知用户' }}</p>
+                  <p class="truncate text-xs text-[#A89B8C]">{{ app.user?.userName || '未知用户' }}</p>
                 </div>
               </div>
             </div>
@@ -673,35 +676,35 @@ onMounted(() => {
             <div class="flex items-center gap-3">
               <input
                 v-model="goodAppSearch"
-                class="rounded-2xl border border-neutral-200 bg-transparent px-4 py-1.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                class="rounded-2xl border border-[#E8E0D8] bg-transparent px-4 py-1.5 text-sm outline-none transition-all duration-200 focus:border-[#E8734A] dark:border-[#3D3630]"
                 placeholder="搜索应用名称"
                 @keydown.enter="goodAppPagination.current = 1; loadGoodApps()"
               />
-              <button type="button" class="rounded-2xl border border-neutral-200 px-3 py-1.5 text-sm transition-all duration-200 hover:border-[#3B82F6] hover:text-[#3B82F6] dark:border-neutral-800" @click="goodAppPagination.current = 1; loadGoodApps()">搜索</button>
+              <button type="button" class="rounded-2xl border border-[#E8E0D8] px-3 py-1.5 text-sm transition-all duration-200 hover:border-[#E8734A] hover:text-[#E8734A] dark:border-[#3D3630]" @click="goodAppPagination.current = 1; loadGoodApps()">搜索</button>
             </div>
           </div>
-          <div v-if="goodAppsLoading" class="py-8 text-center text-neutral-400">加载中...</div>
-          <div v-else-if="goodApps.length === 0" class="py-8 text-center text-neutral-400">暂无精选应用</div>
+          <div v-if="goodAppsLoading" class="py-8 text-center text-[#A89B8C]">加载中...</div>
+          <div v-else-if="goodApps.length === 0" class="py-8 text-center text-[#A89B8C]">暂无精选应用</div>
           <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div
               v-for="app in goodApps"
               :key="app.id"
-              class="group cursor-pointer overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all duration-200 hover:border-[#3B82F6] hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+              class="group cursor-pointer overflow-hidden rounded-2xl border border-[#E8E0D8] bg-[#FFFFFF] transition-all duration-200 hover:border-[#E8734A] hover:shadow-[0_2px_12px_rgba(45,35,24,0.06)] dark:border-[#3D3630] dark:bg-[#1A1714]"
             >
-              <div class="relative aspect-video w-full overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+              <div class="relative aspect-video w-full overflow-hidden bg-[#EDE7E0] dark:bg-[#2E2924]">
                 <img v-if="app.cover" :src="app.cover" class="h-full w-full object-cover" />
                 <div v-else class="flex h-full items-center justify-center text-3xl font-bold text-white" :style="{ background: getAppCover(app.id) }">{{ (app.appName || 'App')[0] }}</div>
-                <div class="absolute inset-0 flex items-center justify-center gap-3 bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                  <button type="button" class="rounded-lg bg-[#3B82F6] px-3 py-1.5 text-xs font-medium text-white shadow transition-all hover:bg-blue-600" @click="goTo(`/app/chat/${app.id}`)">查看对话</button>
-                  <a v-if="app.deployKey" :href="`/${app.deployKey}`" target="_blank" class="rounded-lg bg-[#10B981] px-3 py-1.5 text-xs font-medium text-white shadow transition-all hover:bg-emerald-600" @click.stop>查看作品</a>
+                <div class="absolute inset-0 flex items-center justify-center gap-3 bg-[#2D2318]/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <button type="button" class="rounded-xl bg-[#E8734A] px-3 py-1.5 text-xs font-medium text-white shadow-[0_1px_3px_rgba(45,35,24,0.04)] transition-all hover:bg-[#D4623D]" @click="goTo(`/app/chat/${app.id}`)">查看对话</button>
+                  <a v-if="app.deployKey" :href="buildDeployUrl(app.deployKey)" target="_blank" class="rounded-xl bg-[#2DB87F] px-3 py-1.5 text-xs font-medium text-white shadow-[0_1px_3px_rgba(45,35,24,0.04)] transition-all hover:bg-[#26A06E]" @click.stop>查看作品</a>
                 </div>
               </div>
               <div class="flex items-center gap-2.5 p-3">
                 <img v-if="app.user?.userAvatar" :src="app.user.userAvatar" class="h-8 w-8 flex-shrink-0 rounded-full object-cover" />
-                <div v-else class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3B82F6] text-xs font-bold text-white">{{ (app.user?.userName || '?')[0] }}</div>
+                <div v-else class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#E8734A] text-xs font-bold text-white">{{ (app.user?.userName || '?')[0] }}</div>
                 <div class="min-w-0 flex-1">
                   <h3 class="truncate text-sm font-medium">{{ app.appName || '未命名应用' }}</h3>
-                  <p class="truncate text-xs text-neutral-400">{{ app.user?.userName || '未知用户' }}</p>
+                  <p class="truncate text-xs text-[#A89B8C]">{{ app.user?.userName || '未知用户' }}</p>
                 </div>
               </div>
             </div>
@@ -715,19 +718,22 @@ onMounted(() => {
       </template>
 
       <!-- ========== 应用管理（管理员） ========== -->
-      <section v-else-if="currentSection === 'appManage'" class="min-h-[65vh] rounded-2xl border border-neutral-200 bg-white/50 p-6 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/30 md:p-8">
+      <section v-else-if="currentSection === 'appManage'" class="min-h-[65vh] rounded-2xl border border-[#E8E0D8] bg-[#FFFFFF]/50 p-6 backdrop-blur-sm dark:border-[#3D3630] dark:bg-[#1A1714]/30 md:p-8">
         <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h1 class="text-2xl font-bold">应用管理</h1>
-          <button type="button" class="rounded-2xl border border-neutral-200 px-4 py-2 text-sm transition-all duration-200 hover:border-[#3B82F6] hover:text-[#3B82F6] dark:border-neutral-800" @click="loadAdminApps">刷新</button>
+          <button type="button" class="rounded-2xl border border-[#E8E0D8] px-4 py-2 text-sm transition-all duration-200 hover:border-[#E8734A] hover:text-[#E8734A] dark:border-[#3D3630]" @click="loadAdminApps">刷新</button>
         </div>
         <div class="grid gap-3 md:grid-cols-3">
           <input v-model="adminAppSearch.appName" class="table-input" placeholder="应用名称" />
-          <input v-model="adminAppSearch.codeGenType" class="table-input" placeholder="代码类型" />
-          <button type="button" class="rounded-2xl border border-neutral-200 bg-[#3B82F6] px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-blue-500 dark:border-neutral-800" @click="adminAppPagination.current = 1; loadAdminApps()">搜索</button>
+          <select v-model="adminAppSearch.codeGenType" class="table-input">
+            <option value="">全部类型</option>
+            <option v-for="(label, value) in CodeGenTypeLabels" :key="value" :value="value">{{ label }}</option>
+          </select>
+          <button type="button" class="rounded-2xl border border-[#E8E0D8] bg-[#E8734A] px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-[#D4623D] dark:border-[#3D3630]" @click="adminAppPagination.current = 1; loadAdminApps()">搜索</button>
         </div>
-        <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-200 dark:border-neutral-800">
+        <div class="mt-6 overflow-x-auto rounded-2xl border border-[#E8E0D8] dark:border-[#3D3630]">
           <table class="w-max min-w-full text-left text-sm whitespace-nowrap">
-            <thead class="bg-neutral-100/80 dark:bg-neutral-900/70">
+            <thead class="bg-[#EDE7E0]/80 dark:bg-[#1A1714]/70">
               <tr>
                 <th class="px-4 py-3">ID</th>
                 <th class="px-4 py-3">应用名称</th>
@@ -745,8 +751,8 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-if="adminAppsLoading"><td class="px-4 py-4 text-neutral-500" colspan="13">加载中...</td></tr>
-              <tr v-for="app in adminApps" v-else :key="app.id" class="border-t border-neutral-200 transition-colors duration-200 hover:bg-neutral-100/60 dark:border-neutral-800 dark:hover:bg-neutral-900/50">
+              <tr v-if="adminAppsLoading"><td class="px-4 py-4 text-[#A89B8C]" colspan="13">加载中...</td></tr>
+              <tr v-for="app in adminApps" v-else :key="app.id" class="border-t border-[#E8E0D8] transition-colors duration-200 hover:bg-[#F5F0EB] dark:border-[#3D3630] dark:hover:bg-[#1A1714]/50">
                 <td class="px-4 py-3">{{ app.id }}</td>
                 <td class="px-4 py-3">{{ app.appName || '-' }}</td>
                 <td class="px-4 py-3">
@@ -754,7 +760,7 @@ onMounted(() => {
                   <span v-else>-</span>
                 </td>
                 <td class="max-w-[300px] truncate px-4 py-3" :title="app.initPrompt">{{ app.initPrompt || '-' }}</td>
-                <td class="px-4 py-3">{{ app.codeGenType || '-' }}</td>
+                <td class="px-4 py-3">{{ CodeGenTypeLabels[app.codeGenType as CodeGenTypeEnum] || app.codeGenType || '-' }}</td>
                 <td class="px-4 py-3">{{ app.deployKey || '-' }}</td>
                 <td class="px-4 py-3">{{ app.deployedTime || '-' }}</td>
                 <td class="px-4 py-3">{{ app.priority ?? 0 }}</td>
@@ -762,15 +768,15 @@ onMounted(() => {
                 <td class="px-4 py-3">{{ app.editTime || '-' }}</td>
                 <td class="px-4 py-3">{{ app.createTime || '-' }}</td>
                 <td class="px-4 py-3">{{ app.updateTime || '-' }}</td>
-                <td class="sticky right-0 bg-white px-4 py-3 dark:bg-[#0A0A0A]">
+                <td class="sticky right-0 bg-[#FFFFFF] px-4 py-3 dark:bg-[#1A1714]">
                   <div class="flex items-center gap-2">
-                    <button type="button" class="rounded-lg bg-[#3B82F6] px-3 py-1 text-xs text-white transition-all hover:bg-blue-600" @click="goTo(`/app/edit/${app.id}`)">编辑</button>
-                    <button type="button" class="rounded-lg bg-[#10B981] px-3 py-1 text-xs text-white transition-all hover:bg-emerald-600" @click="handleSetFeatured(app.id)">精选</button>
-                    <button type="button" class="rounded-lg bg-[#EF4444] px-3 py-1 text-xs text-white transition-all hover:bg-red-600" @click="handleAdminDeleteApp(app.id)">删除</button>
+                    <button type="button" class="rounded-xl bg-[#E8734A] px-3 py-1 text-xs text-white transition-all hover:bg-[#D4623D]" @click="goTo(`/app/edit/${app.id}`)">编辑</button>
+                    <button type="button" class="rounded-xl bg-[#2DB87F] px-3 py-1 text-xs text-white transition-all hover:bg-[#26A06E]" @click="handleSetFeatured(app.id)">精选</button>
+                    <button type="button" class="rounded-xl bg-[#E05454] px-3 py-1 text-xs text-white transition-all hover:bg-[#CC4545]" @click="handleAdminDeleteApp(app.id)">删除</button>
                   </div>
                 </td>
               </tr>
-              <tr v-if="!adminAppsLoading && adminApps.length === 0"><td class="px-4 py-4 text-neutral-500" colspan="13">暂无数据</td></tr>
+              <tr v-if="!adminAppsLoading && adminApps.length === 0"><td class="px-4 py-4 text-[#A89B8C]" colspan="13">暂无数据</td></tr>
             </tbody>
           </table>
         </div>
@@ -782,24 +788,23 @@ onMounted(() => {
       </section>
 
       <!-- ========== 用户管理 ========== -->
-      <section v-else-if="currentSection === 'userManage'" class="min-h-[65vh] rounded-2xl border border-neutral-200 bg-white/50 p-6 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/30 md:p-8">
+      <section v-else-if="currentSection === 'userManage'" class="min-h-[65vh] rounded-2xl border border-[#E8E0D8] bg-[#FFFFFF]/50 p-6 backdrop-blur-sm dark:border-[#3D3630] dark:bg-[#1A1714]/30 md:p-8">
         <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h1 class="text-2xl font-bold">用户管理</h1>
-          <button type="button" class="rounded-2xl border border-neutral-200 px-4 py-2 text-sm transition-all duration-200 hover:border-[#3B82F6] hover:text-[#3B82F6] dark:border-neutral-800" @click="loadUsers">刷新</button>
+          <button type="button" class="rounded-2xl border border-[#E8E0D8] px-4 py-2 text-sm transition-all duration-200 hover:border-[#E8734A] hover:text-[#E8734A] dark:border-[#3D3630]" @click="loadUsers">刷新</button>
         </div>
         <div class="grid gap-3 md:grid-cols-4">
           <input v-model="searchForm.userAccount" class="table-input" placeholder="账号" />
           <input v-model="searchForm.userName" class="table-input" placeholder="用户名" />
           <select v-model="searchForm.userRole" class="table-input">
             <option value="">全部角色</option>
-            <option value="user">普通用户</option>
-            <option value="admin">管理员</option>
+            <option v-for="(label, value) in UserRoleLabels" :key="value" :value="value">{{ label }}</option>
           </select>
-          <button type="button" class="rounded-2xl border border-neutral-200 bg-[#3B82F6] px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-blue-500 dark:border-neutral-800" @click="userPagination.current = 1; loadUsers()">搜索</button>
+          <button type="button" class="rounded-2xl border border-[#E8E0D8] bg-[#E8734A] px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-[#D4623D] dark:border-[#3D3630]" @click="userPagination.current = 1; loadUsers()">搜索</button>
         </div>
-        <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-200 dark:border-neutral-800">
+        <div class="mt-6 overflow-x-auto rounded-2xl border border-[#E8E0D8] dark:border-[#3D3630]">
           <table class="w-max min-w-full text-left text-sm whitespace-nowrap">
-            <thead class="bg-neutral-100/80 dark:bg-neutral-900/70">
+            <thead class="bg-[#EDE7E0]/80 dark:bg-[#1A1714]/70">
               <tr>
                 <th class="px-4 py-3">ID</th>
                 <th class="px-4 py-3">账号</th>
@@ -814,8 +819,8 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-if="userLoading"><td class="px-4 py-4 text-neutral-500" colspan="10">加载中...</td></tr>
-              <tr v-for="item in users" v-else :key="item.id" class="border-t border-neutral-200 transition-colors duration-200 hover:bg-neutral-100/60 dark:border-neutral-800 dark:hover:bg-neutral-900/50">
+              <tr v-if="userLoading"><td class="px-4 py-4 text-[#A89B8C]" colspan="10">加载中...</td></tr>
+              <tr v-for="item in users" v-else :key="item.id" class="border-t border-[#E8E0D8] transition-colors duration-200 hover:bg-[#F5F0EB] dark:border-[#3D3630] dark:hover:bg-[#1A1714]/50">
                 <td class="px-4 py-3">{{ item.id }}</td>
                 <td class="px-4 py-3">{{ item.userAccount }}</td>
                 <td class="px-4 py-3">{{ item.userName }}</td>
@@ -828,14 +833,14 @@ onMounted(() => {
                 <td class="px-4 py-3">{{ item.editTime || '-' }}</td>
                 <td class="px-4 py-3">{{ item.createTime }}</td>
                 <td class="px-4 py-3">{{ item.updateTime || '-' }}</td>
-                <td class="sticky right-0 bg-white px-4 py-3 dark:bg-[#0A0A0A]">
+                <td class="sticky right-0 bg-[#FFFFFF] px-4 py-3 dark:bg-[#1A1714]">
                   <div class="flex items-center gap-2">
-                    <button type="button" class="rounded-lg bg-[#3B82F6] px-3 py-1 text-xs text-white transition-all hover:bg-blue-600" @click="openUserEdit(item)">编辑</button>
-                    <button type="button" class="rounded-lg bg-[#EF4444] px-3 py-1 text-xs text-white transition-all hover:bg-red-600" @click="handleDeleteUser(item.id)">删除</button>
+                    <button type="button" class="rounded-xl bg-[#E8734A] px-3 py-1 text-xs text-white transition-all hover:bg-[#D4623D]" @click="openUserEdit(item)">编辑</button>
+                    <button type="button" class="rounded-xl bg-[#E05454] px-3 py-1 text-xs text-white transition-all hover:bg-[#CC4545]" @click="handleDeleteUser(item.id)">删除</button>
                   </div>
                 </td>
               </tr>
-              <tr v-if="!userLoading && users.length === 0"><td class="px-4 py-4 text-neutral-500" colspan="10">暂无数据</td></tr>
+              <tr v-if="!userLoading && users.length === 0"><td class="px-4 py-4 text-[#A89B8C]" colspan="10">暂无数据</td></tr>
             </tbody>
           </table>
         </div>
@@ -847,23 +852,22 @@ onMounted(() => {
       </section>
 
       <!-- ========== 对话管理 ========== -->
-      <section v-else-if="currentSection === 'chatManage'" class="min-h-[65vh] rounded-2xl border border-neutral-200 bg-white/50 p-6 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/30 md:p-8">
+      <section v-else-if="currentSection === 'chatManage'" class="min-h-[65vh] rounded-2xl border border-[#E8E0D8] bg-[#FFFFFF]/50 p-6 backdrop-blur-sm dark:border-[#3D3630] dark:bg-[#1A1714]/30 md:p-8">
         <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h1 class="text-2xl font-bold">对话管理</h1>
-          <button type="button" class="rounded-2xl border border-neutral-200 px-4 py-2 text-sm transition-all duration-200 hover:border-[#3B82F6] hover:text-[#3B82F6] dark:border-neutral-800" @click="loadAdminChats">刷新</button>
+          <button type="button" class="rounded-2xl border border-[#E8E0D8] px-4 py-2 text-sm transition-all duration-200 hover:border-[#E8734A] hover:text-[#E8734A] dark:border-[#3D3630]" @click="loadAdminChats">刷新</button>
         </div>
         <div class="grid gap-3 md:grid-cols-3">
           <input v-model="adminChatSearch.appId" class="table-input" placeholder="应用 ID" />
           <select v-model="adminChatSearch.messageType" class="table-input">
             <option value="">全部类型</option>
-            <option value="user">用户消息</option>
-            <option value="ai">AI 消息</option>
+            <option v-for="(label, value) in MessageTypeLabels" :key="value" :value="value">{{ label }}</option>
           </select>
-          <button type="button" class="rounded-2xl border border-neutral-200 bg-[#3B82F6] px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-blue-500 dark:border-neutral-800" @click="adminChatPagination.current = 1; loadAdminChats()">搜索</button>
+          <button type="button" class="rounded-2xl border border-[#E8E0D8] bg-[#E8734A] px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-[#D4623D] dark:border-[#3D3630]" @click="adminChatPagination.current = 1; loadAdminChats()">搜索</button>
         </div>
-        <div class="mt-6 overflow-x-auto rounded-2xl border border-neutral-200 dark:border-neutral-800">
+        <div class="mt-6 overflow-x-auto rounded-2xl border border-[#E8E0D8] dark:border-[#3D3630]">
           <table class="w-max min-w-full text-left text-sm whitespace-nowrap">
-            <thead class="bg-neutral-100/80 dark:bg-neutral-900/70">
+            <thead class="bg-[#EDE7E0]/80 dark:bg-[#1A1714]/70">
               <tr>
                 <th class="px-4 py-3">ID</th>
                 <th class="px-4 py-3">消息内容</th>
@@ -875,19 +879,19 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-if="adminChatsLoading"><td class="px-4 py-4 text-neutral-500" colspan="7">加载中...</td></tr>
-              <tr v-for="chat in adminChats" v-else :key="chat.id" class="border-t border-neutral-200 transition-colors duration-200 hover:bg-neutral-100/60 dark:border-neutral-800 dark:hover:bg-neutral-900/50">
+              <tr v-if="adminChatsLoading"><td class="px-4 py-4 text-[#A89B8C]" colspan="7">加载中...</td></tr>
+              <tr v-for="chat in adminChats" v-else :key="chat.id" class="border-t border-[#E8E0D8] transition-colors duration-200 hover:bg-[#F5F0EB] dark:border-[#3D3630] dark:hover:bg-[#1A1714]/50">
                 <td class="px-4 py-3">{{ chat.id }}</td>
                 <td class="max-w-[400px] truncate px-4 py-3" :title="chat.message">{{ chat.message || '-' }}</td>
                 <td class="px-4 py-3">
-                  <span class="rounded-full px-2 py-0.5 text-xs" :class="chat.messageType === 'ai' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'">{{ chat.messageType === 'ai' ? 'AI' : '用户' }}</span>
+                  <span class="rounded-full px-2 py-0.5 text-xs" :class="chat.messageType === 'ai' ? 'bg-[#FDF0EC] text-[#D4623D] dark:bg-[#E8734A]/15 dark:text-[#E8734A]' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'">{{ chat.messageType === 'ai' ? 'AI' : '用户' }}</span>
                 </td>
                 <td class="px-4 py-3">{{ chat.appId || '-' }}</td>
                 <td class="px-4 py-3">{{ chat.userId || '-' }}</td>
                 <td class="px-4 py-3">{{ chat.createTime || '-' }}</td>
                 <td class="px-4 py-3">{{ chat.updateTime || '-' }}</td>
               </tr>
-              <tr v-if="!adminChatsLoading && adminChats.length === 0"><td class="px-4 py-4 text-neutral-500" colspan="7">暂无数据</td></tr>
+              <tr v-if="!adminChatsLoading && adminChats.length === 0"><td class="px-4 py-4 text-[#A89B8C]" colspan="7">暂无数据</td></tr>
             </tbody>
           </table>
         </div>
@@ -899,9 +903,9 @@ onMounted(() => {
       </section>
 
       <!-- ========== 关于 ========== -->
-      <section v-else-if="currentSection === 'about'" class="min-h-[65vh] rounded-2xl border border-neutral-200 bg-white/50 p-8 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/30">
+      <section v-else-if="currentSection === 'about'" class="min-h-[65vh] rounded-2xl border border-[#E8E0D8] bg-[#FFFFFF]/50 p-8 backdrop-blur-sm dark:border-[#3D3630] dark:bg-[#1A1714]/30">
         <h1 class="text-3xl font-bold">关于</h1>
-        <p class="mt-4 max-w-3xl text-neutral-600 dark:text-neutral-300">
+        <p class="mt-4 max-w-3xl text-[#7A6E62] dark:text-[#B5A899]">
           桥一瞧 AI 零代码应用生产平台，通过 AI 对话即可生成网站应用，让需求极速上线。
         </p>
       </section>
@@ -961,8 +965,7 @@ onMounted(() => {
         <div>
           <label class="mb-1 block text-sm font-medium">角色</label>
           <a-select v-model:value="userEditForm.userRole" class="w-full">
-            <a-select-option value="user">普通用户</a-select-option>
-            <a-select-option value="admin">管理员</a-select-option>
+            <a-select-option v-for="(label, value) in UserRoleLabels" :key="value" :value="value">{{ label }}</a-select-option>
           </a-select>
         </div>
         <div class="flex items-center gap-3 pt-2">
@@ -976,7 +979,7 @@ onMounted(() => {
 
 <style scoped>
 .hero-gradient {
-  background-image: linear-gradient(120deg, #d4fc79 0%, #96e6a1 100%);
+  background-image: linear-gradient(120deg, #FDDCB5 0%, #F5B895 100%);
 }
 .hero-glow {
   position: absolute;
@@ -985,15 +988,15 @@ onMounted(() => {
   width: 120%;
   height: 120%;
   transform: translateX(-50%);
-  background: radial-gradient(ellipse at center, rgba(150, 230, 161, 0.2) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(232, 115, 74, 0.15) 0%, transparent 70%);
   pointer-events: none;
 }
 .hero-grid {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(45, 35, 24, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45, 35, 24, 0.04) 1px, transparent 1px);
   background-size: 60px 60px;
   pointer-events: none;
 }
@@ -1004,10 +1007,10 @@ onMounted(() => {
   transition: color 0.2s;
 }
 .nav-link:hover {
-  color: #3B82F6;
+  color: #E8734A;
 }
 .nav-active {
-  color: #3B82F6;
+  color: #E8734A;
 }
 .nav-active::after {
   content: '';
@@ -1017,11 +1020,11 @@ onMounted(() => {
   width: 100%;
   height: 2px;
   border-radius: 9999px;
-  background: #3B82F6;
+  background: #E8734A;
 }
 .page-btn {
   border-radius: 16px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid #E8E0D8;
   padding: 4px 12px;
   transition: all 0.2s;
 }
@@ -1030,7 +1033,7 @@ onMounted(() => {
 }
 .table-input {
   border-radius: 16px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid #E8E0D8;
   background: transparent;
   padding: 8px 16px;
   font-size: 14px;
@@ -1038,21 +1041,21 @@ onMounted(() => {
   transition: all 0.2s;
 }
 .table-input:focus {
-  border-color: #3B82F6;
+  border-color: #E8734A;
 }
 .auth-subtitle {
   margin: 0 0 16px;
   font-size: 14px;
-  color: #525252;
+  color: #7A6E62;
 }
 
 :global(html.dark .page-btn) {
-  border-color: #262626;
+  border-color: #3D3630;
 }
 :global(html.dark .table-input) {
-  border-color: #262626;
+  border-color: #3D3630;
 }
 :global(html.dark .auth-subtitle) {
-  color: #a3a3a3;
+  color: #A89B8C;
 }
 </style>

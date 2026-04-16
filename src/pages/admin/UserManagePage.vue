@@ -27,8 +27,7 @@
               placeholder="选择角色"
               style="min-width: 140px"
             >
-              <a-select-option value="user">普通用户</a-select-option>
-              <a-select-option value="admin">管理员</a-select-option>
+              <a-select-option v-for="(label, value) in UserRoleLabels" :key="value" :value="value">{{ label }}</a-select-option>
             </a-select>
           </a-form-item>
           <a-form-item>
@@ -90,8 +89,7 @@
           </a-form-item>
           <a-form-item label="角色">
             <a-select v-model:value="editForm.userRole" placeholder="选择角色" allow-clear>
-              <a-select-option value="user">普通用户</a-select-option>
-              <a-select-option value="admin">管理员</a-select-option>
+              <a-select-option v-for="(label, value) in UserRoleLabels" :key="value" :value="value">{{ label }}</a-select-option>
             </a-select>
           </a-form-item>
         </a-form>
@@ -105,6 +103,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import type { TableColumnsType } from 'ant-design-vue'
 import { listUserVoByPage, updateUser, deleteUser } from '@/api/userController.ts'
+import { UserRoleLabels } from '@/enums'
 
 const loading = ref(false)
 
@@ -338,13 +337,13 @@ onMounted(() => {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: #F0EAE3;
 }
 
 .page-subtitle {
   margin: 6px 0 0;
   font-size: 13px;
-  color: #9ca3af;
+  color: #A89B8C;
 }
 
 .page-content {
@@ -360,81 +359,81 @@ onMounted(() => {
 }
 
 .search-card :deep(.ant-form-item-label > label) {
-  color: #e5e7eb;
+  color: #F0EAE3;
 }
 
 .search-card :deep(.ant-input),
 .search-card :deep(.ant-select-selector) {
-  background: #ffffff;
-  border-color: #d1d5db;
-  color: #111827;
+  background: #FFFFFF;
+  border-color: #E8E0D8;
+  color: #231F1B;
 }
 
 .search-card :deep(.ant-input::placeholder),
 .search-card :deep(.ant-select-selection-placeholder) {
-  color: #9ca3af;
+  color: #A89B8C;
 }
 
 .table-card :deep(.ant-table) {
   background: transparent;
-  color: #e5e7eb;
+  color: #F0EAE3;
 }
 
 .table-card :deep(.ant-table-thead > tr > th) {
-  background: rgba(15, 23, 42, 0.95);
-  color: #9ca3af;
-  border-bottom-color: rgba(55, 65, 81, 0.9);
+  background: rgba(26, 23, 20, 0.95);
+  color: #A89B8C;
+  border-bottom-color: rgba(61, 54, 48, 0.9);
 }
 
 .table-card :deep(.ant-table-tbody > tr > td) {
-  border-bottom-color: rgba(31, 41, 55, 0.9);
+  border-bottom-color: rgba(46, 41, 36, 0.9);
 }
 
 .table-card :deep(.ant-table-tbody > tr:hover > td) {
-  background: rgba(31, 41, 55, 0.9);
+  background: rgba(46, 41, 36, 0.9);
 }
 
 .table-card :deep(.ant-btn-link),
 .table-card :deep(.ant-btn-link:hover),
 .table-card :deep(.ant-btn-link:focus) {
   background: transparent;
-  color: #e5e7eb;
+  color: #F0EAE3;
   padding: 0;
   height: auto;
 }
 
 :deep(.ant-modal) .ant-modal-content {
-  background: rgba(15, 23, 42, 0.98);
+  background: rgba(35, 31, 27, 0.98);
   border-radius: 18px;
 }
 
 :deep(.ant-modal) .ant-modal-header {
   background: transparent;
-  border-bottom-color: rgba(55, 65, 81, 0.9);
+  border-bottom-color: rgba(61, 54, 48, 0.9);
 }
 
 :deep(.ant-modal) .ant-modal-title {
-  color: #ffffff;
+  color: #F0EAE3;
 }
 
 :deep(.ant-modal) .ant-modal-body {
-  color: #e5e7eb;
+  color: #F0EAE3;
 }
 
 :deep(.ant-modal) .ant-form-item-label > label {
-  color: #e5e7eb;
+  color: #F0EAE3;
 }
 
 :deep(.ant-modal) .ant-input,
 :deep(.ant-modal) .ant-input-textarea-affix-wrapper,
 :deep(.ant-modal) .ant-select-selector {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(148, 163, 184, 0.6);
-  color: #e5e7eb;
+  background: rgba(35, 31, 27, 0.9);
+  border-color: rgba(168, 155, 140, 0.6);
+  color: #F0EAE3;
 }
 
 :deep(.ant-modal) .ant-input::placeholder,
 :deep(.ant-modal) .ant-select-selection-placeholder {
-  color: #6b7280;
+  color: #7A6E62;
 }
 </style>

@@ -3,22 +3,83 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ========== 温暖柔和主题 — CSS 变量 ========== */
 :root {
   color-scheme: light;
+
+  /* 主色 */
+  --color-primary: #E8734A;
+  --color-primary-hover: #D4623D;
+  --color-primary-active: #C4553A;
+  --color-primary-light: #FDF0EC;
+
+  /* 语义色 */
+  --color-success: #2DB87F;
+  --color-success-hover: #26A06E;
+  --color-danger: #E05454;
+  --color-danger-hover: #CC4545;
+  --color-warning: #E5A84B;
+  --color-info: #6B9FD4;
+
+  /* 背景 */
+  --color-bg: #FBF8F5;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-muted: #F5F0EB;
+  --color-bg-subtle: #EDE7E0;
+
+  /* 边框 */
+  --color-border: #E8E0D8;
+  --color-border-muted: #F0EAE3;
+
+  /* 文字 */
+  --color-text: #2D2318;
+  --color-text-secondary: #7A6E62;
+  --color-text-muted: #A89B8C;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 3px rgba(45, 35, 24, 0.04);
+  --shadow-md: 0 2px 12px rgba(45, 35, 24, 0.06);
+  --shadow-lg: 0 4px 20px rgba(45, 35, 24, 0.1);
+  --shadow-xl: 0 8px 32px rgba(45, 35, 24, 0.14);
 }
 
 html.dark {
   color-scheme: dark;
+
+  --color-primary: #E8734A;
+  --color-primary-hover: #F08A66;
+  --color-primary-active: #C4553A;
+  --color-primary-light: #2E2116;
+
+  --color-bg: #1A1714;
+  --color-bg-elevated: #231F1B;
+  --color-bg-muted: #2E2924;
+  --color-bg-subtle: #3D3630;
+
+  --color-border: #3D3630;
+  --color-border-muted: #332E28;
+
+  --color-text: #F0EAE3;
+  --color-text-secondary: #B5A899;
+  --color-text-muted: #7A6E62;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 body {
   margin: 0;
   font-family:
     'Inter',
-    ui-sans-serif,
-    system-ui,
     -apple-system,
+    BlinkMacSystemFont,
     'Segoe UI',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
     sans-serif;
-  background-color: #ffffff;
+  background-color: var(--color-bg);
+  color: var(--color-text);
 }
