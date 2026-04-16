@@ -108,15 +108,15 @@ onMounted(() => {
     </header>
 
     <main class="mx-auto max-w-3xl px-6 py-12">
-      <div v-if="loading" class="py-16 text-center text-neutral-400">加载中...</div>
-      <div v-else class="rounded-2xl border border-neutral-200 bg-white/50 p-8 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/30">
+      <div v-if="loading" class="py-16 text-center text-[#A89B8C]">加载中...</div>
+      <div v-else class="rounded-2xl border border-[#E8E0D8] bg-[#FFFFFF]/50 p-8 backdrop-blur-sm dark:border-[#3D3630] dark:bg-[#1A1714]/30">
         <div class="space-y-6">
           <!-- 应用名称 -->
           <div>
             <label class="mb-2 block text-sm font-medium">应用名称</label>
             <input
               v-model="form.appName"
-              class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+              class="w-full rounded-2xl border border-[#E8E0D8] bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#E8734A] dark:border-[#3D3630]"
               placeholder="请输入应用名称"
             />
           </div>
@@ -127,7 +127,7 @@ onMounted(() => {
               <label class="mb-2 block text-sm font-medium">应用封面 URL</label>
               <input
                 v-model="form.cover"
-                class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                class="w-full rounded-2xl border border-[#E8E0D8] bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#E8734A] dark:border-[#3D3630]"
                 placeholder="请输入封面图片 URL"
               />
             </div>
@@ -136,7 +136,7 @@ onMounted(() => {
               <textarea
                 v-model="form.initPrompt"
                 rows="4"
-                class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                class="w-full rounded-2xl border border-[#E8E0D8] bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#E8734A] dark:border-[#3D3630]"
                 placeholder="请输入初始化 Prompt"
               />
             </div>
@@ -144,7 +144,7 @@ onMounted(() => {
               <label class="mb-2 block text-sm font-medium">代码生成类型</label>
               <select
                 v-model="form.codeGenType"
-                class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                class="w-full rounded-2xl border border-[#E8E0D8] bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#E8734A] dark:border-[#3D3630]"
               >
                 <option v-for="(label, value) in CodeGenTypeLabels" :key="value" :value="value">{{ label }}</option>
               </select>
@@ -153,7 +153,7 @@ onMounted(() => {
               <label class="mb-2 block text-sm font-medium">部署标识</label>
               <input
                 v-model="form.deployKey"
-                class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                class="w-full rounded-2xl border border-[#E8E0D8] bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#E8734A] dark:border-[#3D3630]"
                 placeholder="请输入部署标识"
               />
             </div>
@@ -162,14 +162,14 @@ onMounted(() => {
               <input
                 v-model.number="form.priority"
                 type="number"
-                class="w-full rounded-2xl border border-neutral-200 bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#3B82F6] dark:border-neutral-800"
+                class="w-full rounded-2xl border border-[#E8E0D8] bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-[#E8734A] dark:border-[#3D3630]"
                 placeholder="优先级数字，99 为精选"
               />
             </div>
           </template>
 
           <!-- 只读信息 -->
-          <div class="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-500 dark:bg-neutral-800/50 dark:text-neutral-400">
+          <div class="rounded-xl bg-[#F5F0EB] p-4 text-sm text-[#A89B8C] dark:bg-[#2E2924]/50 dark:text-[#A89B8C]">
             <p>应用 ID: {{ app.id }}</p>
             <p v-if="!isAdmin" class="mt-1">代码类型: {{ CodeGenTypeLabels[app.codeGenType as CodeGenTypeEnum] || app.codeGenType || '-' }}</p>
             <p class="mt-1">部署时间: {{ app.deployedTime || '-' }}</p>
@@ -183,7 +183,7 @@ onMounted(() => {
           <div class="flex items-center gap-3">
             <button
               type="button"
-              class="rounded-2xl bg-[#3B82F6] px-6 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-500 disabled:opacity-50"
+              class="rounded-xl bg-[#E8734A] px-6 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-[#D4623D] disabled:opacity-50"
               :disabled="saving"
               @click="handleSave"
             >
@@ -191,7 +191,7 @@ onMounted(() => {
             </button>
             <button
               type="button"
-              class="rounded-2xl border border-neutral-200 px-6 py-2.5 text-sm transition-all duration-200 hover:border-[#3B82F6] hover:text-[#3B82F6] dark:border-neutral-800"
+              class="rounded-xl border border-[#E8E0D8] px-6 py-2.5 text-sm transition-all duration-200 hover:border-[#E8734A] hover:text-[#E8734A] dark:border-[#3D3630]"
               @click="router.back()"
             >
               取消
