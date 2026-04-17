@@ -8,7 +8,7 @@ import { API_BASE_URL } from '@/config'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { buildSseUrl, buildPreviewUrl } from '@/utils'
 import { UserRoleEnum, CodeGenTypeEnum, CodeGenTypeLabels } from '@/enums'
-import { useVisualEditor } from '@/composables/useVisualEditor'
+import { VisualEditor, type ElementInfo } from '@/composables/useVisualEditor'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
@@ -55,16 +55,43 @@ const previewIframeRef = ref<HTMLIFrameElement>()
 const userScrolledUp = ref(false)
 let sseAbortController: AbortController | null = null
 
-const {
-  editMode,
-  selectedElements,
-  toggleEditMode,
-  clearSelection,
-  exitEditMode: exitVisualEditMode,
-  removeElement,
-  buildElementPrompt,
-  cleanup: cleanupVisualEditor,
-} = useVisualEditor()
+// ========== 可视化编辑器 ==========
+const editMode = ref(false)
+const selectedElements = ref<ElementInfo[]>([])
+
+const visualEditor = new VisualEditor({
+  onElementSelected: (elementInfo: ElementInfo) => {
+    // 避免重复添加相同选择器的元素
+    const exists = selectedElements.value.some((el) => el.selector === elementInfo.selector)
+    if (!exists) {
+      selectedElements.value.push(elementInfo)
+    }
+  },
+})
+
+const onIframeMessage = (event: MessageEvent) => {
+  visualEditor.handleIframeMessage(event)
+}
+
+const removeElement = (index: number) => {
+  selectedElements.value.splice(index, 1)
+  // 同步清除 iframe 内的选中效果后重新标记剩余元素
+  visualEditor.clearSelection()
+}
+
+const buildElementPrompt = (): string => {
+  if (selectedElements.value.length === 0) return ''
+  const lines = selectedElements.value.map((el, i) => {
+    const parts = [`<${el.tagName}>`]
+    if (el.id) parts.push(`id="${el.id}"`)
+    if (el.className) parts.push(`class="${el.className}"`)
+    parts.push(`selector="${el.selector}"`)
+    if (el.textContent) parts.push(`text="${el.textContent}"`)
+    if (el.pagePath) parts.push(`page="${el.pagePath}"`)
+    return `  元素${i + 1}: ${parts.join(' ')}`
+  })
+  return `[用户在页面上选中了以下元素，请针对这些元素进行修改]\n${lines.join('\n')}\n[用户的修改要求]\n`
+}
 const collapsedToolGroups = ref<Record<string, boolean>>({})
 const toggleToolGroup = (msgIdx: number, sectionIdx: number) => {
   const key = `${msgIdx}-${sectionIdx}`
@@ -375,7 +402,8 @@ const updatePreview = () => {
 
 const handleToggleEditMode = async () => {
   if (editMode.value) {
-    exitVisualEditMode()
+    visualEditor.disableEditMode()
+    editMode.value = false
     return
   }
   // 自动切换到预览模式
@@ -387,17 +415,9 @@ const handleToggleEditMode = async () => {
   const iframe = previewIframeRef.value
   if (!iframe) return
 
-  const tryEnter = () => {
-    try {
-      if (iframe.contentDocument?.body?.childElementCount) {
-        toggleEditMode(iframe)
-        return
-      }
-    } catch { /* 跨域访问失败 */ }
-    // iframe 还没加载完，等 load 事件
-    iframe.addEventListener('load', () => toggleEditMode(iframe), { once: true })
-  }
-  tryEnter()
+  visualEditor.init(iframe)
+  visualEditor.enableEditMode()
+  editMode.value = true
 }
 
 const handleSend = () => {
@@ -405,9 +425,11 @@ const handleSend = () => {
   const elementPrompt = buildElementPrompt()
   const finalText = elementPrompt ? elementPrompt + rawText : rawText
   sendMessage(finalText)
-  if (selectedElements.value.length > 0) {
-    clearSelection()
-    exitVisualEditMode()
+  if (selectedElements.value.length > 0 || editMode.value) {
+    selectedElements.value = []
+    visualEditor.clearSelection()
+    visualEditor.disableEditMode()
+    editMode.value = false
   }
 }
 
@@ -650,6 +672,7 @@ const handleClickOutside = (e: MouseEvent) => {
 onMounted(() => {
   loadApp()
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('message', onIframeMessage)
 })
 
 onUnmounted(() => {
@@ -657,7 +680,11 @@ onUnmounted(() => {
     sseAbortController.abort()
     sseAbortController = null
   }
-  cleanupVisualEditor()
+  if (editMode.value) {
+    visualEditor.disableEditMode()
+    editMode.value = false
+  }
+  window.removeEventListener('message', onIframeMessage)
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
@@ -913,7 +940,7 @@ onUnmounted(() => {
             >
               <template #message>
                 <span class="text-xs">
-                  <code class="rounded bg-[#EDE7E0] px-1 py-0.5 text-[#E8734A] dark:bg-[#3D3630]">&lt;{{ el.tagName }}&gt;</code>
+                  <code class="rounded bg-[#EDE7E0] px-1 py-0.5 text-[#E8734A] dark:bg-[#3D3630]">&lt;{{ el.tagName.toLowerCase() }}&gt;</code>
                   <span v-if="el.id" class="ml-1 text-[#7A6E62] dark:text-[#B5A899]">#{{ el.id }}</span>
                   <span v-if="el.className" class="ml-1 text-[#A89B8C]">.{{ el.className.split(' ')[0] }}</span>
                   <span v-if="el.textContent" class="ml-1.5 text-[#A89B8C]">"{{ el.textContent }}"</span>
@@ -992,6 +1019,7 @@ onUnmounted(() => {
               :src="previewUrl"
               class="flex-1 border-none bg-white"
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              @load="visualEditor.onIframeLoad()"
             />
             <!-- 编辑模式指示条 -->
             <div v-if="editMode" class="absolute bottom-0 left-0 right-0 flex items-center justify-center bg-[#3B82F6]/90 py-1.5 text-xs font-medium text-white">
