@@ -10,6 +10,10 @@ declare namespace API {
     priority?: number
   }
 
+  type AppDeployRequest = {
+    appId?: number
+  }
+
   type AppQueryRequest = {
     pageNum?: number
     pageSize?: number
@@ -138,8 +142,8 @@ declare namespace API {
     id?: number
   }
 
-  type AppDeployRequest = {
-    appId?: number
+  type downloadAppCodeParams = {
+    appId: number
   }
 
   type getAppVOByIdByAdminParams = {

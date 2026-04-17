@@ -4,9 +4,11 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { getAppVoById, deleteApp, deployApp } from '@/api/appController'
+import { API_BASE_URL } from '@/config'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { buildSseUrl, buildPreviewUrl } from '@/utils'
-import { UserRoleEnum } from '@/enums'
+import { UserRoleEnum, CodeGenTypeEnum, CodeGenTypeLabels } from '@/enums'
+import { useVisualEditor } from '@/composables/useVisualEditor'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
@@ -22,6 +24,20 @@ interface ChatMessage {
   content: string
 }
 
+interface ToolOperation {
+  action: string
+  path: string
+  displayAction: string
+  icon: 'edit' | 'read'
+}
+
+interface MessageSection {
+  type: 'text' | 'tool-group'
+  content?: string
+  groupLabel?: string
+  operations?: ToolOperation[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
@@ -35,8 +51,25 @@ const streaming = ref(false)
 const previewUrl = ref('')
 const previewMode = ref<'preview' | 'code'>('preview')
 const messageListRef = ref<HTMLElement>()
+const previewIframeRef = ref<HTMLIFrameElement>()
 const userScrolledUp = ref(false)
 let sseAbortController: AbortController | null = null
+
+const {
+  editMode,
+  selectedElements,
+  toggleEditMode,
+  clearSelection,
+  exitEditMode: exitVisualEditMode,
+  removeElement,
+  buildElementPrompt,
+  cleanup: cleanupVisualEditor,
+} = useVisualEditor()
+const collapsedToolGroups = ref<Record<string, boolean>>({})
+const toggleToolGroup = (msgIdx: number, sectionIdx: number) => {
+  const key = `${msgIdx}-${sectionIdx}`
+  collapsedToolGroups.value[key] = !collapsedToolGroups.value[key]
+}
 
 const handleMessageListScroll = () => {
   const el = messageListRef.value
@@ -63,6 +96,97 @@ const renderMarkdown = (content: string) => {
   if (!content) return ''
   return md.render(content)
 }
+
+// ========== AI 消息结构化解析 ==========
+const parseMessageSections = (content: string): MessageSection[] => {
+  if (!content) return []
+
+  const result: MessageSection[] = []
+  const toolCallLineRegex = /\[工具调用\]\s*(\S+)\s+(\S+)/g
+
+  // 找到所有工具调用及其位置
+  const toolCalls: { index: number; action: string; path: string; endIndex: number }[] = []
+  let m
+  while ((m = toolCallLineRegex.exec(content)) !== null) {
+    const action = m[1]
+    const path = m[2]
+    let endIndex = m.index + m[0].length
+
+    // 写入/编辑操作后面可能跟着代码块，需要一并消费
+    if (['写入文件', '编辑文件', '更新文件', '创建文件'].includes(action)) {
+      const afterMatch = content.slice(endIndex)
+      const codeBlockMatch = afterMatch.match(/^\s*\n```[\w]*\n[\s\S]*?(?:```|$)/)
+      if (codeBlockMatch) {
+        endIndex += codeBlockMatch[0].length
+      }
+    }
+
+    toolCalls.push({ index: m.index, action, path, endIndex })
+  }
+
+  // 按位置构建分段
+  let lastEnd = 0
+  for (const tc of toolCalls) {
+    const textBefore = content.slice(lastEnd, tc.index).trim()
+    if (textBefore) {
+      result.push({ type: 'text', content: textBefore })
+    }
+
+    let groupLabel: string, displayAction: string, icon: 'edit' | 'read'
+    if (['写入文件', '编辑文件', '更新文件', '创建文件'].includes(tc.action)) {
+      groupLabel = '文件更新'
+      displayAction = tc.action === '写入文件' || tc.action === '创建文件' ? '写入' : '编辑'
+      icon = 'edit'
+    } else if (tc.action === '读取文件') {
+      groupLabel = '文件读取'
+      displayAction = '读取'
+      icon = 'read'
+    } else if (['读取目录', '搜索目录', '目录检索'].includes(tc.action)) {
+      groupLabel = '目录检索'
+      displayAction = '读取'
+      icon = 'read'
+    } else {
+      groupLabel = '工具调用'
+      displayAction = tc.action
+      icon = 'read'
+    }
+
+    // 尝试合并到前一个同类型的工具组
+    const lastSection = result[result.length - 1]
+    if (lastSection?.type === 'tool-group' && lastSection.groupLabel === groupLabel) {
+      lastSection.operations!.push({ action: tc.action, path: tc.path, displayAction, icon })
+    } else {
+      result.push({
+        type: 'tool-group',
+        groupLabel,
+        operations: [{ action: tc.action, path: tc.path, displayAction, icon }],
+      })
+    }
+
+    lastEnd = tc.endIndex
+  }
+
+  // 剩余文本
+  const remaining = content.slice(lastEnd).trim()
+  if (remaining) {
+    result.push({ type: 'text', content: remaining })
+  }
+
+  // 如果没有解析出任何分段，整体作为文本
+  if (result.length === 0 && content.trim()) {
+    result.push({ type: 'text', content })
+  }
+
+  return result
+}
+
+const parsedMessages = computed(() => {
+  return messages.value.map((msg, i) => ({
+    ...msg,
+    sections: msg.role === 'ai' ? parseMessageSections(msg.content) : [],
+    isCurrentlyStreaming: streaming.value && i === messages.value.length - 1,
+  }))
+})
 
 // ========== 对话历史游标分页 ==========
 const historyLoading = ref(false)
@@ -249,8 +373,42 @@ const updatePreview = () => {
   }
 }
 
+const handleToggleEditMode = async () => {
+  if (editMode.value) {
+    exitVisualEditMode()
+    return
+  }
+  // 自动切换到预览模式
+  if (previewMode.value !== 'preview') {
+    previewMode.value = 'preview'
+  }
+  // 等待 DOM 更新（iframe 可能刚刚渲染）
+  await nextTick()
+  const iframe = previewIframeRef.value
+  if (!iframe) return
+
+  const tryEnter = () => {
+    try {
+      if (iframe.contentDocument?.body?.childElementCount) {
+        toggleEditMode(iframe)
+        return
+      }
+    } catch { /* 跨域访问失败 */ }
+    // iframe 还没加载完，等 load 事件
+    iframe.addEventListener('load', () => toggleEditMode(iframe), { once: true })
+  }
+  tryEnter()
+}
+
 const handleSend = () => {
-  sendMessage(inputText.value)
+  const rawText = inputText.value
+  const elementPrompt = buildElementPrompt()
+  const finalText = elementPrompt ? elementPrompt + rawText : rawText
+  sendMessage(finalText)
+  if (selectedElements.value.length > 0) {
+    clearSelection()
+    exitVisualEditMode()
+  }
 }
 
 const handleStop = () => {
@@ -331,6 +489,40 @@ const handleDeploy = async () => {
     message.error('部署异常')
   } finally {
     deploying.value = false
+  }
+}
+
+const downloading = ref(false)
+
+const handleDownloadCode = async () => {
+  if (downloading.value || streaming.value) return
+  try {
+    downloading.value = true
+    const response = await fetch(`${API_BASE_URL}/app/download/${appId.value}`, {
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      message.error(errorData?.message || '下载失败')
+      return
+    }
+    const disposition = response.headers.get('Content-Disposition') || ''
+    const filenameMatch = disposition.match(/filename="?(.+?)"?$/)
+    const filename = filenameMatch ? filenameMatch[1] : `${appId.value}.zip`
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    message.success('下载成功')
+  } catch {
+    message.error('下载异常')
+  } finally {
+    downloading.value = false
   }
 }
 
@@ -465,6 +657,7 @@ onUnmounted(() => {
     sseAbortController.abort()
     sseAbortController = null
   }
+  cleanupVisualEditor()
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
@@ -482,6 +675,9 @@ onUnmounted(() => {
         </button>
         <div class="h-4 w-px bg-[#E8E0D8] dark:bg-[#3D3630]" />
         <span class="max-w-[200px] truncate text-sm font-medium">{{ app.appName || '未命名应用' }}</span>
+        <span v-if="app.codeGenType" class="rounded-full bg-[#EDE7E0] px-2 py-0.5 text-[10px] font-medium text-[#7A6E62] dark:bg-[#3D3630] dark:text-[#B5A899]">
+          {{ CodeGenTypeLabels[app.codeGenType as CodeGenTypeEnum] || app.codeGenType }}
+        </span>
         <span v-if="streaming" class="flex items-center gap-1 rounded-full bg-[#FEF6E7] px-2 py-0.5 text-xs text-[#E5A84B] dark:bg-[#E5A84B]/15 dark:text-[#E5A84B]">
           <span class="h-1.5 w-1.5 rounded-full bg-[#E5A84B] animate-pulse" />
           创作中
@@ -489,11 +685,11 @@ onUnmounted(() => {
       </div>
 
       <!-- 中间：模式切换 -->
-      <div class="flex items-center gap-1 rounded-xl bg-[#EDE7E0] p-0.5 dark:bg-[#2E2924]">
+      <div class="flex items-center gap-0.5 rounded-lg bg-[#EDE7E0] p-[3px] dark:bg-[#2E2924]">
         <button
           type="button"
           class="rounded-md px-3 py-1 text-xs font-medium transition-all"
-          :class="previewMode === 'preview' ? 'bg-[#FFFFFF] text-[#E8734A] shadow-[0_1px_3px_rgba(45,35,24,0.04)] dark:bg-[#3D3630] dark:text-[#E8734A]' : 'text-[#A89B8C] hover:text-[#7A6E62] dark:hover:text-[#B5A899]'"
+          :class="previewMode === 'preview' ? 'bg-[#FFFFFF] text-[#E8734A] shadow-[0_1px_3px_rgba(45,35,24,0.08)] dark:bg-[#3D3630] dark:text-[#E8734A]' : 'text-[#A89B8C] hover:text-[#7A6E62] dark:hover:text-[#B5A899]'"
           @click="previewMode = 'preview'"
         >
           预览
@@ -501,7 +697,7 @@ onUnmounted(() => {
         <button
           type="button"
           class="rounded-md px-3 py-1 text-xs font-medium transition-all"
-          :class="previewMode === 'code' ? 'bg-[#FFFFFF] text-[#E8734A] shadow-[0_1px_3px_rgba(45,35,24,0.04)] dark:bg-[#3D3630] dark:text-[#E8734A]' : 'text-[#A89B8C] hover:text-[#7A6E62] dark:hover:text-[#B5A899]'"
+          :class="previewMode === 'code' ? 'bg-[#FFFFFF] text-[#E8734A] shadow-[0_1px_3px_rgba(45,35,24,0.08)] dark:bg-[#3D3630] dark:text-[#E8734A]' : 'text-[#A89B8C] hover:text-[#7A6E62] dark:hover:text-[#B5A899]'"
           @click="previewMode = 'code'"
         >
           &lt;/&gt;
@@ -541,6 +737,11 @@ onUnmounted(() => {
                 <span class="w-14 flex-shrink-0 text-xs text-[#A89B8C]">创建时间</span>
                 <span class="text-xs text-[#7A6E62] dark:text-[#B5A899]">{{ app.createTime || '-' }}</span>
               </div>
+              <!-- 应用类型 -->
+              <div class="flex items-center gap-2">
+                <span class="w-14 flex-shrink-0 text-xs text-[#A89B8C]">应用类型</span>
+                <span class="text-xs text-[#7A6E62] dark:text-[#B5A899]">{{ app.codeGenType ? (CodeGenTypeLabels[app.codeGenType as CodeGenTypeEnum] || app.codeGenType) : '-' }}</span>
+              </div>
             </div>
             <!-- 操作栏（仅本人或管理员） -->
             <div v-if="isOwnerOrAdmin" class="mt-4 flex gap-2 border-t border-[#F0EAE3] pt-3 dark:border-[#3D3630]">
@@ -561,6 +762,18 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+        <button
+          type="button"
+          class="rounded-xl border border-[#E8E0D8] px-3 py-1.5 text-xs font-medium text-[#7A6E62] transition-all hover:border-[#E8734A] hover:text-[#E8734A] dark:border-[#3D3630] dark:text-[#B5A899] dark:hover:border-[#E8734A] dark:hover:text-[#E8734A] disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="downloading || streaming"
+          @click="handleDownloadCode"
+        >
+          <span v-if="downloading" class="flex items-center gap-1.5">
+            <svg class="h-3 w-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+            下载中
+          </span>
+          <span v-else>下载代码</span>
+        </button>
         <div class="relative">
           <button
             type="button"
@@ -593,7 +806,7 @@ onUnmounted(() => {
         <!-- 消息列表 -->
         <div ref="messageListRef" class="flex-1 overflow-y-auto px-4 py-5 space-y-5" @scroll="handleMessageListScroll">
           <!-- 加载更多 -->
-          <div v-if="hasMoreHistory && messages.length > 0" class="pb-2 text-center">
+          <div v-if="hasMoreHistory && parsedMessages.length > 0" class="pb-2 text-center">
             <button
               type="button"
               class="rounded-xl px-4 py-1.5 text-xs text-[#A89B8C] transition-colors hover:bg-[#F5F0EB] hover:text-[#7A6E62] dark:hover:bg-[#2E2924] dark:hover:text-[#B5A899]"
@@ -603,7 +816,7 @@ onUnmounted(() => {
               {{ historyLoading ? '加载中...' : '加载更多历史消息' }}
             </button>
           </div>
-          <div v-for="(msg, i) in messages" :key="i">
+          <div v-for="(msg, i) in parsedMessages" :key="i">
             <!-- AI 消息 -->
             <div v-if="msg.role === 'ai'" class="space-y-2">
               <div class="flex items-center gap-2">
@@ -612,9 +825,68 @@ onUnmounted(() => {
                 </div>
                 <span class="text-sm font-medium text-[#7A6E62] dark:text-[#B5A899]">Qiao AI</span>
               </div>
-              <div class="ml-8 rounded-xl bg-[#F5F0EB] px-4 py-3 text-sm leading-relaxed text-[#7A6E62] dark:bg-[#2E2924]/60 dark:text-[#B5A899]">
-                <div v-if="msg.content" class="markdown-body" v-html="renderMarkdown(msg.content)" />
-                <span v-else-if="streaming && i === messages.length - 1" class="text-[#A89B8C]">思考中...</span>
+              <div class="ml-8 space-y-2 text-sm leading-relaxed">
+                <template v-if="msg.sections.length > 0">
+                  <template v-for="(section, si) in msg.sections" :key="si">
+                    <!-- 文本段落 -->
+                    <div v-if="section.type === 'text'" class="rounded-xl bg-[#F5F0EB] px-4 py-3 text-[#7A6E62] dark:bg-[#2E2924]/60 dark:text-[#B5A899]">
+                      <div class="markdown-body" v-html="renderMarkdown(section.content!)" />
+                    </div>
+                    <!-- 工具操作分组 -->
+                    <div v-else-if="section.type === 'tool-group'" class="tool-group-card rounded-xl bg-[#F5F0EB] dark:bg-[#2E2924]/60 overflow-hidden">
+                      <button
+                        type="button"
+                        class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-[#EDE7E0] dark:hover:bg-[#3D3630]/40"
+                        @click="toggleToolGroup(i, si)"
+                      >
+                        <!-- 状态图标：流式最后一组显示 spinner，其余显示绿色勾 -->
+                        <template v-if="msg.isCurrentlyStreaming && si === msg.sections.length - 1">
+                          <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                            <svg class="h-4 w-4 animate-spin text-[#E5A84B]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
+                              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          </span>
+                        </template>
+                        <template v-else>
+                          <svg class="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="10" fill="#2DB87F"/>
+                            <path d="M6.5 10.5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </template>
+                        <span class="font-medium text-[#2D2318] dark:text-[#F0EAE3]">{{ section.groupLabel }}</span>
+                        <svg
+                          class="ml-auto h-3.5 w-3.5 text-[#A89B8C] transition-transform duration-200"
+                          :class="{ '-rotate-90': collapsedToolGroups[`${i}-${si}`] }"
+                          viewBox="0 0 20 20" fill="currentColor"
+                        >
+                          <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                        </svg>
+                      </button>
+                      <div v-show="!collapsedToolGroups[`${i}-${si}`]" class="px-3 pb-3 space-y-1.5">
+                        <div
+                          v-for="(op, oi) in section.operations"
+                          :key="oi"
+                          class="flex items-center gap-3 rounded-lg bg-white/70 dark:bg-[#1A1714]/50 px-3 py-2"
+                        >
+                          <!-- 编辑图标 -->
+                          <svg v-if="op.icon === 'edit'" class="h-4 w-4 flex-shrink-0 text-[#A89B8C]" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+                          </svg>
+                          <!-- 读取/书本图标 -->
+                          <svg v-else class="h-4 w-4 flex-shrink-0 text-[#A89B8C]" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V15a1 1 0 11-2 0V4.804z"/>
+                          </svg>
+                          <span class="text-xs font-medium text-[#7A6E62] dark:text-[#B5A899] whitespace-nowrap">{{ op.displayAction }}</span>
+                          <span class="text-xs text-[#A89B8C] truncate">{{ op.path }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </template>
+                <div v-else-if="msg.isCurrentlyStreaming" class="rounded-xl bg-[#F5F0EB] px-4 py-3 dark:bg-[#2E2924]/60">
+                  <span class="text-[#A89B8C]">思考中...</span>
+                </div>
               </div>
             </div>
 
@@ -629,6 +901,26 @@ onUnmounted(() => {
 
         <!-- 输入框 -->
         <div class="flex-shrink-0 border-t border-[#F0EAE3] p-4 dark:border-[#3D3630]">
+          <!-- 选中元素列表 -->
+          <div v-if="selectedElements.length > 0" class="mb-2 space-y-1.5">
+            <a-alert
+              v-for="(el, idx) in selectedElements"
+              :key="idx"
+              type="info"
+              closable
+              class="visual-editor-alert"
+              @close="removeElement(idx)"
+            >
+              <template #message>
+                <span class="text-xs">
+                  <code class="rounded bg-[#EDE7E0] px-1 py-0.5 text-[#E8734A] dark:bg-[#3D3630]">&lt;{{ el.tagName }}&gt;</code>
+                  <span v-if="el.id" class="ml-1 text-[#7A6E62] dark:text-[#B5A899]">#{{ el.id }}</span>
+                  <span v-if="el.className" class="ml-1 text-[#A89B8C]">.{{ el.className.split(' ')[0] }}</span>
+                  <span v-if="el.textContent" class="ml-1.5 text-[#A89B8C]">"{{ el.textContent }}"</span>
+                </span>
+              </template>
+            </a-alert>
+          </div>
           <div class="rounded-xl border border-[#E8E0D8] bg-[#F5F0EB] transition-colors focus-within:border-[#E8734A] dark:border-[#3D3630] dark:bg-[#1A1714]">
             <textarea
               v-model="inputText"
@@ -639,28 +931,41 @@ onUnmounted(() => {
               @keydown="handleKeydown"
             />
             <div class="flex items-center justify-between px-3 pb-2">
-              <div />
-              <!-- 生成中：暂停按钮 -->
+              <!-- 左侧：编辑模式按钮 -->
               <button
-                v-if="streaming"
-                type="button"
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-[#E05454] text-white transition-all hover:bg-[#CC4545]"
-                title="停止生成"
-                @click="handleStop"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>
-              </button>
-              <!-- 空闲：发送按钮 -->
-              <button
-                v-else
                 type="button"
                 class="flex h-8 w-8 items-center justify-center rounded-full transition-all"
-                :class="inputText.trim() ? 'bg-[#E8734A] text-white hover:bg-[#D4623D]' : 'bg-[#E8E0D8] text-[#A89B8C] dark:bg-[#3D3630]'"
-                :disabled="!inputText.trim()"
-                @click="handleSend"
+                :class="editMode ? 'bg-[#E8734A]/15 text-[#E8734A]' : 'text-[#A89B8C] hover:text-[#7A6E62] hover:bg-[#EDE7E0] dark:hover:bg-[#3D3630] dark:hover:text-[#B5A899]'"
+                :disabled="streaming || !previewUrl"
+                title="可视化选择元素"
+                @click="handleToggleEditMode"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 -rotate-90" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.414 1.415l.708-.708zm-7.072 7.072l.707-.707L2.05 13.364a1 1 0 001.414 1.414l2.828-2.828-.707-.707L2.757 14.07a1 1 0 01-1.414-1.414l2.828-2.829zm10.193-1.929l-3.536 3.536a1 1 0 01-1.414 0L7.05 9.486a1 1 0 010-1.414l3.536-3.536a1 1 0 011.414 0l3.364 3.364a1 1 0 010 1.414z" clip-rule="evenodd" /></svg>
               </button>
+              <!-- 右侧：发送/停止按钮 -->
+              <div class="flex items-center gap-2">
+                <!-- 生成中：暂停按钮 -->
+                <button
+                  v-if="streaming"
+                  type="button"
+                  class="flex h-8 w-8 items-center justify-center rounded-full bg-[#E05454] text-white transition-all hover:bg-[#CC4545]"
+                  title="停止生成"
+                  @click="handleStop"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="5" width="10" height="10" rx="1" /></svg>
+                </button>
+                <!-- 空闲：发送按钮 -->
+                <button
+                  v-else
+                  type="button"
+                  class="flex h-8 w-8 items-center justify-center rounded-full transition-all"
+                  :class="inputText.trim() ? 'bg-[#E8734A] text-white hover:bg-[#D4623D]' : 'bg-[#E8E0D8] text-[#A89B8C] dark:bg-[#3D3630]'"
+                  :disabled="!inputText.trim()"
+                  @click="handleSend"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 -rotate-90" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -681,12 +986,19 @@ onUnmounted(() => {
             </div>
           </div>
           <!-- 有预览内容 -->
-          <iframe
-            v-else-if="previewUrl"
-            :src="previewUrl"
-            class="flex-1 border-none bg-white"
-            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-          />
+          <div v-else-if="previewUrl" class="relative flex flex-1 flex-col overflow-hidden">
+            <iframe
+              ref="previewIframeRef"
+              :src="previewUrl"
+              class="flex-1 border-none bg-white"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+            />
+            <!-- 编辑模式指示条 -->
+            <div v-if="editMode" class="absolute bottom-0 left-0 right-0 flex items-center justify-center bg-[#3B82F6]/90 py-1.5 text-xs font-medium text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.414 1.415l.708-.708zm-7.072 7.072l.707-.707L2.05 13.364a1 1 0 001.414 1.414l2.828-2.828-.707-.707L2.757 14.07a1 1 0 01-1.414-1.414l2.828-2.829zm10.193-1.929l-3.536 3.536a1 1 0 01-1.414 0L7.05 9.486a1 1 0 010-1.414l3.536-3.536a1 1 0 011.414 0l3.364 3.364a1 1 0 010 1.414z" clip-rule="evenodd" /></svg>
+              点击页面元素进行选择，选中后在左侧输入修改要求
+            </div>
+          </div>
           <!-- 空状态 -->
           <div v-else class="relative flex flex-1 items-center justify-center overflow-hidden">
             <div class="checkerboard absolute inset-0" />
@@ -774,6 +1086,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.visual-editor-alert :deep(.ant-alert) {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
 .markdown-body :deep(h1),
 .markdown-body :deep(h2),
 .markdown-body :deep(h3) {
